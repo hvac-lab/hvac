@@ -265,6 +265,7 @@ const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readEr
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
 const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["loopmap", "Heating loop diagram"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
+const LOOPMAP_FOR = ["russkoehl@gmail.com"];   // the Heating loop diagram tab shows only for these sign-ins (Russ, 2026-11-06 evening); demo mode shows it
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -507,8 +508,9 @@ function renderStatus() {
 // ------------------------------------------------------------------ tabs
 function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
-  if (state.tab === "admin" && !state.admin) state.tab = "temp";
-  for (const [key, label] of TABS) if (key !== "admin" || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+  const loopMapOk = demo || !!(state.user && LOOPMAP_FOR.includes(String(state.user.email || "").toLowerCase()));
+  if ((state.tab === "admin" && !state.admin) || (state.tab === "loopmap" && !loopMapOk)) state.tab = "temp";
+  for (const [key, label] of TABS) if ((key !== "admin" || state.admin) && (key !== "loopmap" || loopMapOk)) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
   const on = nav.querySelector("button.on"); if (on && nav.scrollWidth > nav.clientWidth) on.scrollIntoView({ block: "nearest", inline: "center" });   // phone: one scrolling row
 }
 function renderTab() {
@@ -1099,6 +1101,7 @@ function ahuSvg(a) {
   const airColor = "#5fb8ff";
   // Russ, 2026-11-06 evening: outdoor air blue up to the mixing box, mixed air purple from there to the coils, red after
   // the heating coil and all the way round the return back into the mixing box while heating, blue when cooling or idle;
+  // with the outdoor damper shut there is no mixing, so no purple: the air after the mixing box keeps the return colour;
   // the dashes (and the fans) move at a speed that follows the fan's output: 100 % fast, 15 % slow.
   const spd = (pct) => (1.2 * 50 / Math.max(10, Math.min(100, pct == null ? 50 : pct))).toFixed(2);
   const duct = (d, flowing, color = airColor, speed = "1.2") => `<path d="${d}" fill="none" stroke="${ductColor}" stroke-width="16" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" class="pipe flow" style="animation-duration:${speed}s"/>` : "");
@@ -1129,6 +1132,7 @@ function ahuSvg(a) {
   const sfAlarm = on("SF-A"), rfAlarm = on("RF-A"), lt = on("LT-A"), daSd = on("DA-SD"), raSd = on("RA-SD");
   const sfCmd = val("SF-C"), rfCmd = val("RF-C");
   const heating = htg > 0, purple = css("--s7"), supColor = heating ? red : airColor, retColor = supColor, sfSpd = spd(val("SF-O")), rfSpd = spd(val("RF-O"));
+  const mixColor = (val("OAD-O") || 0) > 0 ? purple : retColor;   // outdoor damper shut = no purple (Russ, 2026-11-06)
   const re = new RegExp(`\\b${a.fec}\\.`); const alert = state.alerts.find(x => !x.cleared_at && re.test(x.message || ""));
   const SY = 290, RY = 135, EY = 70;   // supply duct, return duct and exhaust run centre lines (the title and state line sit above the exhaust run)
   let s = "";
@@ -1170,8 +1174,8 @@ function ahuSvg(a) {
   s += label(300, 206, "MIXING", "middle", 7.5, ink2, 700) + label(300, 215, "BOX", "middle", 7.5, ink2, 700);
   s += tag(300, 237, "T", num("MA-T", 1, " °F"), "r") + label(318, 252, "mixed air (MA-T)", "start", 8);
   // --- supply side (bottom): intake louver -> outdoor damper -> mixing box -> filter -> heating coil -> cooling coil -> supply fan -> DA sensor -> rooms
-  s += duct(`M 60 ${SY} H 300`, sfOn && (val("OAD-O") || 0) > 0, airColor, sfSpd) + duct(`M 300 ${SY} H 443`, sfOn, purple, sfSpd)
-     + duct(`M 443 ${SY} H 553`, sfOn, heating ? red : purple, sfSpd) + duct(`M 553 ${SY} H 868`, sfOn, supColor, sfSpd);
+  s += duct(`M 60 ${SY} H 300`, sfOn && (val("OAD-O") || 0) > 0, airColor, sfSpd) + duct(`M 300 ${SY} H 443`, sfOn, mixColor, sfSpd)
+     + duct(`M 443 ${SY} H 553`, sfOn, heating ? red : mixColor, sfSpd) + duct(`M 553 ${SY} H 868`, sfOn, supColor, sfSpd);
   s += arrow(190, SY, "r") + arrow(620, SY, "r") + arrow(845, SY, "r");
   s += louver(60, SY, "intake louver");
   s += tag(60, SY - 58, "T", `${num("OA-T", 1, " °F")}`, "r") + label(77, SY - 41, `outdoor air (OA-T) · ${num("OA-H", 0, "%")} humidity`, "start", 8);
