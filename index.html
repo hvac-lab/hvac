@@ -181,8 +181,8 @@ const MAP = {
     { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 21.6, y: 63.0, sm: true },
     { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 23.0, y: 53.6, sm: true },
     { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 32.8, y: 52.1, sm: true },
-    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 35.3, y: 61.9, sm: true },
-    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 56.1, y: 64.3, sm: true },
+    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 33.5, y: 58.5, sm: true },
+    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 59.5, y: 57.5, sm: true },
     { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 52.8, y: 16.0, sm: true },
   ],
 };
@@ -564,6 +564,17 @@ function drawSpots() {
     box.append(el("div", { class: "spot" + (s.sm ? " sm" : ""), style: `left:${s.x}%;top:${s.y}%;--sc:${s.sm ? css("--s7") : css(SERIES[i % SERIES.length])}`, title: p ? `${p.display_name}, ${ago(p.last_ts)}` : s.point },
       v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label)));
   });
+  // keep the small floor markers clear of the big room boxes, whatever the screen size
+  const bigs = [...box.querySelectorAll(".spot:not(.sm)")].map(b => b.getBoundingClientRect());
+  for (const sEl of box.querySelectorAll(".spot.sm")) {
+    for (let pass = 0; pass < 3; pass++) {
+      const r = sEl.getBoundingClientRect();
+      const hit = bigs.find(b => !(r.right < b.left || r.left > b.right || r.bottom < b.top || r.top > b.bottom));
+      if (!hit) break;
+      const up = r.bottom - hit.top + 6, down = hit.bottom - r.top + 6;
+      sEl.style.marginTop = (parseFloat(sEl.style.marginTop || "0") + (up <= down ? -up : down)) + "px";
+    }
+  }
 }
 async function refreshMap() {
   clearTimeout(state.timer);
