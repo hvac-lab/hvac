@@ -106,6 +106,10 @@
      down to the screen width (fitMap), so a phone sees the entire plan at once and pinches in to read a box; the boxes
      shrink with the picture and never pile up (Russ, 2026-11-05/06). .mapfit clips the unscaled layout box. */
   .mapfit { overflow: hidden; }
+  /* Boiler room drawing: pipes with moving dashes where water is being pumped */
+  .broom svg { max-width: 1100px; margin: 0 auto; }
+  .broom .pipe.flow { stroke-dasharray: 10 7; animation: pipeflow 1.2s linear infinite; }
+  @keyframes pipeflow { to { stroke-dashoffset: -17; } }
   hr.sep { border: 0; border-top: 2px solid var(--axis); margin: 20px 0 14px; }
   .boilers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; text-align: center; }
   .boiler h3 { margin: 0 0 6px; font-size: 19px; }
@@ -233,7 +237,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only)
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["boiler", "Boiler room"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only; Boiler room beside the floor plan)
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -482,6 +486,7 @@ function renderTab() {
   main.classList.toggle("wide", state.tab === "map");
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
+  else if (state.tab === "boiler") renderBoilerRoom();
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
   else if (state.tab === "admin") renderAdmin();
@@ -535,18 +540,25 @@ function renderBoilers() {
   const box = $("#boilers"); if (!box) return; box.replaceChildren();
   const deg = (p) => p && p.last_value != null ? Number(p.last_value).toFixed(1) + " °F" : "–";
   for (const b of BOILERS) {
-    const s = pt(b.supply), r = pt(b.ret), f = pt(b.fire), st = pt(b.status), fc = pt(b.fault);
-    const code = st && st.last_value != null ? Number(st.last_value) : null;
-    const faultCode = fc && fc.last_value != null ? Number(fc.last_value) : 0;
-    const firing = f && f.last_value != null && Number(f.last_value) > 0 ? ` · firing at ${Number(f.last_value).toFixed(0)} %` : "";
-    let label = code == null ? "no status" : (BOILER_STATUS[code] || `status ${code}`), cls = "";
-    if (faultCode || code === 4) { label = `FAULT${faultCode ? " code " + faultCode : ""}`; cls = "err"; }
-    else if (code === 3) cls = "ok"; else if (code === 0) cls = "err"; else if (code === 1 || code === 2) cls = "warn";
+    const s = pt(b.supply), r = pt(b.ret);
+    const { label, cls, firing } = boilerState(b);
     box.append(el("div", { class: "boiler" }, el("h3", {}, b.name),
       el("div", { class: "t" }, deg(s)), el("div", { class: "lbl" }, "supply"),
       el("div", { class: "imgwrap" }, el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }), el("div", { class: "st " + cls }, label + firing)),
       el("div", { class: "t" }, deg(r)), el("div", { class: "lbl" }, b.retNote ? `return (${b.retNote})` : "return")));
   }
+}
+// status words and colour for one boiler, from the AERCO status / fault / fire-rate registers (shared by the Boilers card and the Boiler room drawing)
+function boilerState(b) {
+  const f = pt(b.fire), st = pt(b.status), fc = pt(b.fault);
+  const code = st && st.last_value != null ? Number(st.last_value) : null;
+  const faultCode = fc && fc.last_value != null ? Number(fc.last_value) : 0;
+  const fire = f && f.last_value != null ? Number(f.last_value) : 0;
+  const firing = fire > 0 ? ` · firing at ${fire.toFixed(0)} %` : "";
+  let label = code == null ? "no status" : (BOILER_STATUS[code] || `status ${code}`), cls = "";
+  if (faultCode || code === 4) { label = `FAULT${faultCode ? " code " + faultCode : ""}`; cls = "err"; }
+  else if (code === 3) cls = "ok"; else if (code === 0) cls = "err"; else if (code === 1 || code === 2) cls = "warn";
+  return { label, cls, firing, fire, code, faultCode };
 }
 // boiler temperature chart, same controls as the air-handler chart
 function chk(text, on, onchange, color) {
@@ -788,6 +800,124 @@ async function refreshMap() {
   clearTimeout(state.timer);
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); drawSpots(); } catch {}
   state.timer = setTimeout(refreshMap, 60000);
+}
+
+// ------------------------------------------------------------------ Boiler room tab (Russ, 2026-11-06)
+// A schematic of the boiler room drawn after detail 2 "Boiler piping schematic" on sheet M3.1 of the 2013 plan set
+// (Widseth Smith Nolting): B-1 and B-2 in parallel, return header in from the system, supply through the coalescing
+// air separator, expansion tank EXP-1A and glycol feeder, the two circulating pumps CP-1 / CP-2 with VFDs, then the
+// boiler supply water sensor and out to the building. The plan set has no controls sheet, so the engine's points are
+// placed on the drawing by inference: HWS-T = the drawn supply sensor, HWR-T on the return header (not drawn on the
+// schematic), the AERCO registers on each boiler, CPn-S/O/A on each pump, HW-DP (main floor, see M3.2) at the system end.
+const BR = {   // the hot-water loop points by role (group "Local Application")
+  hws: "Local Application.HWS-T", hwr: "Local Application.HWR-T", sp: "Local Application.BLRSP-O", dp: "Local Application.HW-DP", dpsp: "Local Application.HWDP-SP",
+  oat: "Local Application.OA-T", en: "Local Application.BLR-EN", sysEn: "Local Application.SYSTEM-EN", rot: "Local Application.CP-ROT",
+  boilers: [{ name: "B-1", s: "Local Application.BLR1-S", a: "Local Application.BLR1-A", b: BOILERS[0] }, { name: "B-2", s: "Local Application.BLR2-S", a: "Local Application.BLR2-A", b: BOILERS[1] }],
+  pumps: [{ name: "CP-1", s: "Local Application.CP1-S", c: "Local Application.CP1-C", o: "Local Application.CP1-O", a: "Local Application.CP1-A", lo: "Local Application.CP1-LO-A", rt: "Local Application.CP1-RUNTIME" },
+          { name: "CP-2", s: "Local Application.CP2-S", c: "Local Application.CP2-C", o: "Local Application.CP2-O", a: "Local Application.CP2-A", lo: "Local Application.CP2-LO-A", rt: "Local Application.CP2-RUNTIME" }],
+};
+function renderBoilerRoom() {
+  screen(el("div", { class: "card hint" }, "The boiler room as drawn on sheet M3.1 of the 2013 plan set (detail 2, boiler piping schematic), with the logger's live values on the parts the engine measures: ",
+      "boiler status, outlet temperature and fire rate from the AERCO units; pump status, speed and VFD alarms; the supply and return water temperatures, the setpoint and the loop pressure. ",
+      "Red = supply, blue = return; the moving dashes show where water is being pumped. Refreshes every minute. Pinch to zoom on a phone."),
+    el("div", { class: "card", style: "padding:6px" }, el("div", { id: "boilerRoom", class: "broom" }, "Loading…")));
+  refreshBoilerRoom();
+}
+async function refreshBoilerRoom() {
+  clearTimeout(state.timer);
+  const box = $("#boilerRoom"); if (!box) return;
+  try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); box.innerHTML = boilerRoomSvg(); }
+  catch (e) { box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
+  state.timer = setTimeout(refreshBoilerRoom, 60000);
+}
+function boilerRoomSvg() {
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]));
+  const num = (name, d = 1, unit = "") => { const p = pt(name); return p && p.last_value != null ? Number(p.last_value).toFixed(d) + unit : "–"; };
+  const on = (name) => { const p = pt(name); return !!(p && p.last_value != null && Number(p.last_value) === 1); };
+  const has = (name) => !!pt(name);
+  const red = css("--s8"), blue = css("--s1"), ink = css("--ink"), ink2 = css("--ink-2"), muted = css("--muted"), surface = css("--surface"), grid = css("--axis"),
+        good = css("--good"), bad = css("--critical"), warn = css("--warning");
+  const anyPump = on(BR.pumps[0].s) || on(BR.pumps[1].s);
+  const flowCls = anyPump ? " flow" : "";
+  // pipes: supply red, return blue. Coordinates follow the schematic's layout (viewBox 1000 x 600).
+  const pipe = (d, color, cls = "") => `<path d="${d}" fill="none" stroke="${color}" stroke-width="5" stroke-linejoin="round" class="pipe${cls}"/>`;
+  const arrow = (x, y, dir, color) => { const s = 7; const pts = dir === "r" ? `${x - s},${y - s} ${x + s},${y} ${x - s},${y + s}` : dir === "l" ? `${x + s},${y - s} ${x - s},${y} ${x + s},${y + s}` : dir === "d" ? `${x - s},${y - s} ${x},${y + s} ${x + s},${y - s}` : `${x - s},${y + s} ${x},${y - s} ${x + s},${y + s}`; return `<polygon points="${pts}" fill="${color}"/>`; };
+  const valve = (x, y, vertical, label) => `<g transform="translate(${x},${y})${vertical ? " rotate(90)" : ""}"><polygon points="-9,-7 9,7 9,-7 -9,7" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/></g>` + (label ? `<text x="${x + 14}" y="${y + 4}" font-size="10" fill="${muted}">${esc(label)}</text>` : "");
+  const tag = (x, y, letters, value, side = "r", big = false) => `<circle cx="${x}" cy="${y}" r="13" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/><text x="${x}" y="${y + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="${ink2}">${letters}</text>` +
+    `<text x="${side === "r" ? x + 19 : x - 19}" y="${y + (big ? 6 : 5)}" text-anchor="${side === "r" ? "start" : "end"}" font-size="${big ? 17 : 14}" font-weight="700" fill="${ink}">${esc(value)}</text>`;
+  const label = (x, y, text, anchor = "start", size = 11, color = muted, weight = 400) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${color}" font-weight="${weight}">${esc(text)}</text>`;
+  let s = "";
+  // --- return header from the system (bottom left) up to the two boilers
+  s += pipe("M 40 470 H 140 V 400 H 370", blue, flowCls) + pipe("M 210 400 V 330", blue, flowCls) + pipe("M 370 400 V 330", blue, flowCls);
+  s += arrow(100, 470, "r", blue) + arrow(140, 430, "u", blue);
+  s += label(40, 492, "FROM SYSTEM (return)", "start", 11, ink2, 600) + label(40, 506, "3\" HWR", "start", 10);
+  s += tag(80, 440, "T", num(BR.hwr, 1, " °F"), "r", true) + label(99, 426, "return water (HWR-T)", "start", 10);
+  s += valve(210, 365, true) + valve(370, 365, true);
+  // --- boilers
+  BR.boilers.forEach((bb, i) => {
+    const x = i === 0 ? 160 : 320; const st = boilerState(bb.b);
+    const alarm = on(bb.a); const running = on(bb.s) || st.code === 3;
+    const stroke = alarm || st.cls === "err" ? bad : running ? good : grid;
+    s += `<rect x="${x}" y="200" width="100" height="130" rx="8" fill="${surface}" stroke="${stroke}" stroke-width="${running || alarm ? 4 : 2}"/>`;
+    s += label(x + 50, 222, bb.name + "  BOILER", "middle", 13, ink, 700);
+    const pill = alarm ? "ALARM" : st.label.toUpperCase();
+    const pillColor = alarm || st.cls === "err" ? bad : st.cls === "ok" ? good : st.cls === "warn" ? warn : muted;
+    s += `<rect x="${x + 5}" y="232" width="90" height="20" rx="10" fill="${pillColor}"/>` + label(x + 50, 246, pill, "middle", pill.length > 10 ? 8.5 : 10, "#fff", 700);
+    s += label(x + 50, 274, num(bb.b.supply, 1, " °F"), "middle", 18, ink, 700) + label(x + 50, 288, "outlet", "middle", 9);
+    if (st.fire > 0) s += label(x + 50, 306, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700); else s += label(x + 50, 306, "not firing", "middle", 10);
+    if (i === 0) s += label(x + 50, 322, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
+    // relief valve + condensate stub, as drawn
+    s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(x + 104, 240, "relief", "start", 8);
+    s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 350, "condensate", "start", 8);
+  });
+  // --- supply risers to the top header, then to the air separator
+  s += pipe("M 210 200 V 120 H 600 V 150", red, flowCls) + pipe("M 370 200 V 120", red, flowCls);
+  s += arrow(290, 120, "r", red) + arrow(480, 120, "r", red);
+  s += valve(210, 160, true, "balance 51 gpm") + valve(370, 160, true, "balance 51 gpm");
+  s += label(500, 110, "3\" HWS", "start", 10);
+  // --- coalescing air separator with air vent on top and blow-down valve below
+  s += `<path d="M 600 92 l -7 12 h 14 z" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(614, 100, "air vent", "start", 9);
+  s += `<rect x="578" y="150" width="44" height="70" rx="20" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + label(632, 180, "coalescing", "start", 9) + label(632, 191, "air separator", "start", 9);
+  s += `<path d="M 600 220 V 232" stroke="${ink2}" stroke-width="2"/><circle cx="600" cy="238" r="5" fill="${ink2}"/>` + label(610, 242, "blow-down", "start", 8);
+  // --- expansion tank and glycol feeder on a branch off the separator outlet
+  s += pipe("M 600 220 V 300", red, flowCls);
+  s += `<path d="M 600 262 H 770 V 280 M 770 262 H 860 V 282" fill="none" stroke="${red}" stroke-width="2.5"/>`;
+  s += `<rect x="752" y="280" width="36" height="60" rx="14" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + label(770, 356, "EXP-1A", "middle", 9) + label(770, 366, "expansion tank", "middle", 8);
+  s += `<rect x="830" y="282" width="60" height="50" rx="4" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + `<rect x="842" y="272" width="36" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(860, 348, "glycol feeder", "middle", 9);
+  // --- two circulating pumps in parallel, each with a VFD (drawn on the outer side), suction diffuser (small square) and triple-duty valve
+  s += pipe("M 540 300 H 660", red, flowCls) + pipe("M 540 300 V 330", red, flowCls) + pipe("M 660 300 V 330", red, flowCls);
+  s += pipe("M 540 372 V 452 H 660 V 372", red, flowCls) + pipe("M 600 452 V 505", red, flowCls) + arrow(600, 490, "d", red);
+  BR.pumps.forEach((pp, i) => {
+    const x = i === 0 ? 540 : 660; const run = on(pp.s), cmd = on(pp.c), alarm = on(pp.a); const lo = pt(pp.lo); const locked = lo && lo.last_value != null && Number(lo.last_value) !== 1;
+    const stroke = alarm || locked ? bad : run ? good : grid; const mismatch = cmd !== run && has(pp.c) && has(pp.s);
+    s += `<rect x="${x - 6}" y="322" width="12" height="12" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>`;   // suction diffuser
+    s += `<circle cx="${x}" cy="352" r="20" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 4 : 2}"/>` + `<path d="M ${x} 352 l 12 -14 a 20 20 0 0 1 2 24 z" fill="${stroke}" opacity=".85"/>`;
+    const vx = i === 0 ? x - 62 : x + 28;
+    s += `<rect x="${vx}" y="344" width="34" height="16" rx="3" fill="${alarm ? bad : surface}" stroke="${alarm ? bad : ink2}" stroke-width="1.5"/>` + label(vx + 17, 356, "VFD", "middle", 9, alarm ? "#fff" : ink2, 700);
+    s += valve(x, 386, true);
+    const txt = !has(pp.s) ? "–" : run ? `ON ${num(pp.o, 0, " %")}` : "off";
+    const rt = pt(pp.rt); const hours = rt && rt.last_value != null ? `${Number(rt.last_value).toFixed(0)} h run` : "";
+    // name, state and any trouble line beside the pump, on its outer side, so the lower header stays clear
+    const lx = i === 0 ? x - 30 : x + 30, anchor = i === 0 ? "end" : "start";
+    s += label(lx, 396, pp.name, anchor, 12, ink, 700) + label(lx, 410, txt, anchor, 12, run ? good : muted, 700);
+    if (alarm) s += label(lx, 424, "VFD ALARM", anchor, 10, bad, 700); else if (locked) s += label(lx, 424, "LOCKOUT", anchor, 10, bad, 700);
+    else if (mismatch) s += label(lx, 424, cmd ? "commanded on, not running" : "running, not commanded", anchor, 9, bad, 700);
+    else if (hours) s += label(lx, 424, hours, anchor, 8);
+  });
+  // --- boiler supply water sensor and out to the system; the loop pressure sensor lives upstairs (M3.2) but belongs to the same supply
+  s += tag(600, 523, "T", num(BR.hws, 1, " °F"), "r", true) + label(619, 509, "supply water (HWS-T)", "start", 10);
+  s += pipe("M 600 536 V 560 H 760", red, flowCls) + arrow(720, 560, "r", red);
+  s += label(770, 564, "TO SYSTEM (supply)", "start", 11, ink2, 600) + label(770, 578, "3\" HWS to the AHUs, CUH-1/2 and the 11 floor manifolds", "start", 9);
+  s += tag(520, 560, "ΔP", num(BR.dp, 1, " psi"), "l") + label(500, 546, `loop pressure (setpoint ${num(BR.dpsp, 0, " psi")})`, "end", 9);
+  // --- boiler control system box with the outdoor reset sensor, as drawn, showing the setpoint it computes
+  s += `<rect x="20" y="200" width="112" height="78" rx="6" fill="${surface}" stroke="${ink2}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  s += label(76, 216, "BOILER CONTROL", "middle", 9, ink2, 700) + label(76, 234, "setpoint", "middle", 9) + label(76, 252, num(BR.sp, 1, " °F"), "middle", 16, ink, 700);
+  const en = has(BR.en) ? (on(BR.en) ? "boilers enabled" : "boilers disabled") : ""; s += label(76, 268, en, "middle", 9, has(BR.en) && !on(BR.en) ? bad : muted);
+  s += `<path d="M 132 239 H 160" stroke="${ink2}" stroke-width="1.2" stroke-dasharray="3 3"/>`;
+  s += tag(40, 150, "T", num(BR.oat, 1, " °F"), "r") + label(59, 136, "outdoor reset (OA-T)", "start", 10) + `<path d="M 40 163 V 200" stroke="${ink2}" stroke-width="1.2" stroke-dasharray="3 3"/>`;
+  // --- title and source
+  s += label(500, 596, "after sheet M3.1, detail 2 \"Boiler piping schematic\" (WSN, 2013); valve and sensor positions as drawn, live values from the logger", "middle", 9);
+  return `<svg viewBox="0 0 1000 606" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
 }
 
 // ------------------------------------------------------------------ Schedule tab (read from the engine's Schedule objects)
