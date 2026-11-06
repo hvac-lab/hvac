@@ -1019,15 +1019,21 @@ function ahuSvg(a) {
   const airColor = "#5fb8ff";
   const duct = (d, flowing) => `<path d="${d}" fill="none" stroke="${ductColor}" stroke-width="16" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${airColor}" stroke-width="3" stroke-linejoin="round" class="pipe flow"/>` : "");
   const arrow = (x, y, dir, color = ink2) => { const s = 6; const pts = dir === "r" ? `${x - s},${y - s} ${x + s},${y} ${x - s},${y + s}` : dir === "l" ? `${x + s},${y - s} ${x - s},${y} ${x + s},${y + s}` : dir === "d" ? `${x - s},${y - s} ${x},${y + s} ${x + s},${y - s}` : `${x - s},${y + s} ${x},${y - s} ${x + s},${y + s}`; return `<polygon points="${pts}" fill="${color}"/>`; };
-  // damper: a frame in the duct with one blade turned to the commanded opening (0 % = across the duct, 100 % = along it)
-  const damper = (x, y, pct, vertical, name, note) => { const p = pct == null ? 0 : Math.max(0, Math.min(100, pct)); const ang = (vertical ? 0 : 90) - p * 0.9;
-    return `<g transform="translate(${x},${y})"><rect x="-10" y="-10" width="20" height="20" fill="${surface}" stroke="${ink2}" stroke-width="1.4"/><g transform="rotate(${ang})"><line x1="-8" y1="0" x2="8" y2="0" stroke="${p > 0 ? ink : ink2}" stroke-width="2.4"/></g><circle r="1.8" fill="${ink2}"/></g>` +
-      (name ? label(x, vertical ? y + 26 : y - 15, `${name} ${pct == null ? "–" : pct.toFixed(0) + " %"}`, "middle", 8.5, p > 0 ? ink : muted, 600) : "") + (note ? label(x, vertical ? y + 35 : y - 25, note, "middle", 7) : ""); };
-  // coil: hatched box across the duct, tinted while it works
-  const coil = (x, y, color, working, hatch = 5) => { let h = ""; for (let i = -16; i <= 16; i += hatch) h += `<line x1="${x - 11}" y1="${y + i}" x2="${x + 11}" y2="${y + i + 6}" stroke="${working ? color : ink2}" stroke-width="1" opacity=".8"/>`;
-    return `<rect x="${x - 11}" y="${y - 22}" width="22" height="44" fill="${working ? color : surface}" fill-opacity="${working ? .25 : 1}" stroke="${working ? color : ink2}" stroke-width="${working ? 2.4 : 1.4}"/>` + h; };
-  const fan = (x, y, run, alarm, big = 17) => { const stroke = alarm ? bad : run ? good : grid;
-    return `<circle cx="${x}" cy="${y}" r="${big}" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><path d="M ${x} ${y} l 10 -12 a ${big} ${big} 0 0 1 2 20 z" fill="${stroke}" opacity=".85"/><path d="M ${x} ${y} l -10 12 a ${big} ${big} 0 0 1 -2 -20 z" fill="${stroke}" opacity=".5"/>`; };
+  // damper: a frame in the duct with one blade turned to the commanded opening (0 % = across the duct, 100 % = along it);
+  // coloured by opening (Russ, 2026-11-06): closed = red, under 25 % = yellow, 25 % and more = green, no point = grey
+  const dColor = (pct) => pct == null ? ink2 : pct <= 0 ? bad : pct < 25 ? warn : good;
+  const damper = (x, y, pct, vertical, name, note) => { const p = pct == null ? 0 : Math.max(0, Math.min(100, pct)); const ang = (vertical ? 0 : 90) - p * 0.9; const c = dColor(pct);
+    return `<g transform="translate(${x},${y})"><rect x="-10" y="-10" width="20" height="20" fill="${surface}" stroke="${c}" stroke-width="${pct == null ? 1.4 : 2}"/><g transform="rotate(${ang})"><line x1="-8" y1="0" x2="8" y2="0" stroke="${c}" stroke-width="3"/></g><circle r="1.8" fill="${ink2}"/></g>` +
+      (name ? label(x, vertical ? y + 26 : y - 15, `${name} ${pct == null ? "–" : pct.toFixed(0) + " %"}`, "middle", 8.5, pct == null ? muted : c, 700) : "") + (note ? label(x, vertical ? y + 35 : y - 25, note, "middle", 7) : ""); };
+  // coil: hatched box across the duct, tinted while it works, with two wavy lines rippling through it in its colour
+  // (heat rises: the heating coil's waves run upward, the cooling coil's downward)
+  const coil = (x, y, color, working, up = false, hatch = 5) => { let h = ""; for (let i = -16; i <= 16; i += hatch) h += `<line x1="${x - 11}" y1="${y + i}" x2="${x + 11}" y2="${y + i + 6}" stroke="${working ? color : ink2}" stroke-width="1" opacity="${working ? .35 : .8}"/>`;
+    const wave = (wx) => up ? `M ${wx} ${y + 20} q 4 -5 0 -10 t 0 -10 t 0 -10 t 0 -10` : `M ${wx} ${y - 20} q 4 5 0 10 t 0 10 t 0 10 t 0 10`;
+    const w = working ? `<path d="${wave(x - 5)}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" class="pipe flow"/><path d="${wave(x + 5)}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" class="pipe flow"/>` : "";
+    return `<rect x="${x - 11}" y="${y - 22}" width="22" height="44" fill="${working ? color : surface}" fill-opacity="${working ? .25 : 1}" stroke="${working ? color : ink2}" stroke-width="${working ? 2.4 : 1.4}"/>` + h + w; };
+  // fan: three blades that turn while the fan runs (SMIL animateTransform, works on phones too)
+  const fan = (x, y, run, alarm, big = 17) => { const stroke = alarm ? bad : run ? good : grid; const blade = `<path d="M ${x} ${y} l 10 -12 a ${big} ${big} 0 0 1 2 20 z" fill="${stroke}" opacity=".8"/>`;
+    return `<circle cx="${x}" cy="${y}" r="${big}" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><g>${run ? `<animateTransform attributeName="transform" type="rotate" from="0 ${x} ${y}" to="360 ${x} ${y}" dur="0.9s" repeatCount="indefinite"/>` : ""}${blade}<g transform="rotate(120 ${x} ${y})">${blade}</g><g transform="rotate(240 ${x} ${y})">${blade}</g></g><circle cx="${x}" cy="${y}" r="2.5" fill="${ink2}"/>`; };
   const sd = (x, y, alarm) => `<rect x="${x - 7}" y="${y - 7}" width="14" height="14" rx="3" fill="${alarm ? bad : surface}" stroke="${alarm ? bad : ink2}" stroke-width="1.3"/>` + label(x, y + 3, "SD", "middle", 7, alarm ? "#fff" : ink2, 700);
   const louver = (x, y, text) => { let s = `<rect x="${x - 10}" y="${y - 22}" width="20" height="44" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>`; for (let i = -16; i <= 16; i += 8) s += `<line x1="${x - 8}" y1="${y + i - 3}" x2="${x + 8}" y2="${y + i + 3}" stroke="${ink2}" stroke-width="1.4"/>`; return s + label(x, y + 34, text, "middle", 8) + label(x, y + 43, "on the outside wall", "middle", 7); };
   const i = AHUS.indexOf(a); const extra = AHU_EXTRA[a.key] || {};
@@ -1066,7 +1072,7 @@ function ahuSvg(a) {
   const rfTxt = !has("RF-S") ? "–" : rfOn ? `ON ${num("RF-O", 0, " %")}` : "off";
   s += label(600, RY + 32, "return fan", "middle", 9, ink2, 700) + label(600, RY + 44, rfTxt, "middle", 10, rfOn ? good : muted, 700);
   if (rfAlarm) s += label(600, RY + 56, "VFD ALARM", "middle", 9, bad, 700); else if (rfCmd != null && has("RF-S") && (rfCmd === 1) !== rfOn) s += label(600, RY + 56, rfCmd ? "commanded on, not running" : "running, not commanded", "middle", 8, bad, 700);
-  s += damper(420, EY + 33, val("EAD-O"), true, "", "") + label(445, EY + 31, `exhaust damper ${num("EAD-O", 0, " %")}`, "start", 8.5, (val("EAD-O") || 0) > 0 ? ink : muted, 600);
+  s += damper(420, EY + 33, val("EAD-O"), true, "", "") + label(445, EY + 31, `exhaust damper ${num("EAD-O", 0, " %")}`, "start", 8.5, has("EAD-O") ? dColor(val("EAD-O")) : muted, 700);
   s += louver(60, EY, "exhaust louver") + label(250, EY + 22, "EXHAUST AIR out of the building", "middle", 9, ink2, 600);
   s += damper(360, RY, val("RAD-O"), false, "return damper", "");
   // --- mixing box joins the two rows
@@ -1086,7 +1092,7 @@ function ahuSvg(a) {
   s += `<rect x="372" y="${SY - 22}" width="12" height="44" fill="${surface}" stroke="${ink2}" stroke-width="1.4"/>`; for (let y = SY - 18; y < SY + 22; y += 6) s += `<path d="M 372 ${y} l 6 -3 l 6 3" fill="none" stroke="${ink2}" stroke-width="1"/>`;
   s += label(378, SY + 36, "filter", "middle", 9, ink2, 700) + label(378, SY + 47, fdp == null ? "–" : `ΔP ${fdp.toFixed(3)} in.`, "middle", 8.5, fdp != null && fdp > 0.5 ? bad : muted, 600) + (fdp != null && fdp > 0.5 ? label(378, SY + 56, "dirty, change it", "middle", 7, bad, 700) : "");
   // heating coil (hot water from the boilers) with its control valve
-  s += coil(443, SY, red, htg > 0) + label(443, SY + 36, "heating coil", "middle", 9, htg > 0 ? red : ink2, 700) + label(443, SY + 47, has("HTG-O") ? `valve ${htg.toFixed(0)} % open` : "–", "middle", 8.5, htg > 0 ? red : muted, 600);
+  s += coil(443, SY, red, htg > 0, true) + label(443, SY + 36, "heating coil", "middle", 9, htg > 0 ? red : ink2, 700) + label(443, SY + 47, has("HTG-O") ? `valve ${htg.toFixed(0)} % open` : "–", "middle", 8.5, htg > 0 ? red : muted, 600);
   s += label(443, SY + 56, `${extra.valve || "valve"} · water from the boilers`, "middle", 7);
   if (has("HTG-EN") && !on("HTG-EN")) s += label(443, SY - 30, "heating disabled", "middle", 7.5, warn, 700);
   // low-limit (freeze) stat at the coils
@@ -1130,8 +1136,8 @@ function svgKit() {
   k.valve = (x, y, kind, open) => { const f = open ? k.red : k.surface; let s = `<g transform="translate(${x},${y})"><polygon points="-8,-6 8,6 8,-6 -8,6" fill="${f}" stroke="${k.ink2}" stroke-width="1.5"/>`;
     if (kind === "3-way") s += `<polygon points="0,0 -6,10 6,10" fill="${f}" stroke="${k.ink2}" stroke-width="1.5"/>`; if (kind === "zone") s += `<line x1="0" y1="-6" x2="0" y2="-13" stroke="${k.ink2}" stroke-width="1.5"/><rect x="-5" y="-19" width="10" height="6" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.2"/>`;
     return s + `</g>`; };
-  k.fan = (x, y, run, alarm, r = 17) => { const stroke = alarm ? k.bad : run ? k.good : k.grid;
-    return `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><path d="M ${x} ${y} l 10 -12 a ${r} ${r} 0 0 1 2 20 z" fill="${stroke}" opacity=".85"/><path d="M ${x} ${y} l -10 12 a ${r} ${r} 0 0 1 -2 -20 z" fill="${stroke}" opacity=".5"/>`; };
+  k.fan = (x, y, run, alarm, r = 17) => { const stroke = alarm ? k.bad : run ? k.good : k.grid; const blade = `<path d="M ${x} ${y} l 10 -12 a ${r} ${r} 0 0 1 2 20 z" fill="${stroke}" opacity=".8"/>`;
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><g>${run ? `<animateTransform attributeName="transform" type="rotate" from="0 ${x} ${y}" to="360 ${x} ${y}" dur="0.9s" repeatCount="indefinite"/>` : ""}${blade}<g transform="rotate(120 ${x} ${y})">${blade}</g><g transform="rotate(240 ${x} ${y})">${blade}</g></g><circle cx="${x}" cy="${y}" r="2.5" fill="${k.ink2}"/>`; };
   k.pump = (x, y, run, alarm, r = 14) => { const stroke = alarm ? k.bad : run ? k.good : k.grid;
     return `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><path d="M ${x} ${y} l 9 -10 a ${r} ${r} 0 0 1 1 17 z" fill="${stroke}" opacity=".85"/>`; };
   return k;
@@ -1697,7 +1703,7 @@ function demoPoints() {
   // air-handler drawing: dampers, coils, return fan, filter and building pressure (AHU-2 heating with the fans on, AHU-3 cooling stage 1)
   ["FEC-6", "FEC-7", "FEC-8"].forEach((fec, i) => {
     out.push(mk(id++, `${fec}.MA-T`, fec, "analog", "degrees-fahrenheit", 64.2 + i), mk(id++, `${fec}.RA-T`, fec, "analog", "degrees-fahrenheit", 67.5 + i));
-    out.push(mk(id++, `${fec}.OAD-O`, fec, "analog", "percent", i === 1 ? 25 : 0), mk(id++, `${fec}.RAD-O`, fec, "analog", "percent", i === 1 ? 75 : 100), mk(id++, `${fec}.EAD-O`, fec, "analog", "percent", i === 1 ? 25 : 0));
+    out.push(mk(id++, `${fec}.OAD-O`, fec, "analog", "percent", i === 1 ? 25 : i === 0 ? 10 : 0), mk(id++, `${fec}.RAD-O`, fec, "analog", "percent", i === 1 ? 75 : 100), mk(id++, `${fec}.EAD-O`, fec, "analog", "percent", i === 1 ? 25 : 0));
     out.push(mk(id++, `${fec}.OAD-MINPOS`, fec, "analog", "percent", 3), mk(id++, `${fec}.HTG-O`, fec, "analog", "percent", i === 1 ? 40 : 0));
     out.push(mk(id++, `${fec}.CLG1-C`, fec, "binary", null, i === 2 ? 1 : 0, 0, ["Off", "On"]), mk(id++, `${fec}.CLG2-C`, fec, "binary", null, 0, 0, ["Off", "On"]));
     out.push(mk(id++, `${fec}.RF-S`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]), mk(id++, `${fec}.RF-C`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]), mk(id++, `${fec}.RF-A`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]), mk(id++, `${fec}.RF-O`, fec, "analog", "percent", i === 1 ? 70 : 0));
