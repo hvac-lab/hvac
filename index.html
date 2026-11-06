@@ -214,10 +214,15 @@ const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
 // logged data 2026-11-05: AV-303/403 = boiler outlet, AV-305 = boiler 1 inlet (tracks the loop return),
 // AV-308/408 = fire rate %. Boiler 2's inlet/header registers read a constant 250/246 = no sensor connected.)
+// AV-301/401 = unit status (AERCO codes: 0 disabled, 1 standby, 2 manual, 3 remote = running; 4 fault), confirmed against the
+// fire rate on logged data; AV-302/402 = fault code (0 = none).
 const BOILERS = [
-  { name: "Boiler-1", supply: "Boiler-1&2.AV-303", ret: "Boiler-1&2.AV-305", fire: "Boiler-1&2.AV-308" },
-  { name: "Boiler-2", supply: "Boiler-1&2.AV-403", ret: "Local Application.HWR-T", retNote: "loop return, boiler 2 has no return sensor", fire: "Boiler-1&2.AV-408" },
+  { name: "Boiler-1", supply: "Boiler-1&2.AV-303", ret: "Boiler-1&2.AV-305", fire: "Boiler-1&2.AV-308", status: "Boiler-1&2.AV-301", fault: "Boiler-1&2.AV-302" },
+  { name: "Boiler-2", supply: "Boiler-1&2.AV-403", ret: "Local Application.HWR-T", retNote: "loop return, boiler 2 has no return sensor", fire: "Boiler-1&2.AV-408", status: "Boiler-1&2.AV-401", fault: "Boiler-1&2.AV-402" },
 ];
+const BOILER_STATUS = { 0: "Off (disabled)", 1: "Standby", 2: "Manual", 3: "Running", 4: "Fault" };
+// Russ, 2026-11-05: no changes from the page for now (hides "Set from here" and the rule editor). Set true to bring them back.
+const ALLOW_CHANGES = false;
 // Details tab: names for the engine's controller groups, in display order
 const GROUPS = { "FEC-6": "AHU-1 - Fellowship Area, Main Entry", "FEC-7": "AHU-2 - Kitchen and Dining", "FEC-8": "AHU-3 - Worship Area", "AHU-3 Folder": "AHU-3 dehumidification",
   "Local Application": "Boilers and hot water loop", "Boiler-1&2": "Boiler gateway (raw values from the boilers)", "FEC-5": "In-floor heating zones (FEC-5)",
@@ -418,13 +423,18 @@ function renderBoilers() {
   const box = $("#boilers"); if (!box) return; box.replaceChildren();
   const deg = (p) => p && p.last_value != null ? Number(p.last_value).toFixed(1) + " °F" : "–";
   for (const b of BOILERS) {
-    const s = pt(b.supply), r = pt(b.ret), f = pt(b.fire);
-    const firing = f && f.last_value != null ? (Number(f.last_value) > 0 ? `firing at ${Number(f.last_value).toFixed(0)} %` : "idle") : "";
+    const s = pt(b.supply), r = pt(b.ret), f = pt(b.fire), st = pt(b.status), fc = pt(b.fault);
+    const code = st && st.last_value != null ? Number(st.last_value) : null;
+    const faultCode = fc && fc.last_value != null ? Number(fc.last_value) : 0;
+    const firing = f && f.last_value != null && Number(f.last_value) > 0 ? ` · firing at ${Number(f.last_value).toFixed(0)} %` : "";
+    let label = code == null ? "no status" : (BOILER_STATUS[code] || `status ${code}`), cls = "";
+    if (faultCode || code === 4) { label = `FAULT${faultCode ? " code " + faultCode : ""}`; cls = "critical"; }
+    else if (code === 3) cls = "ok"; else if (code === 0) cls = "err";
     box.append(el("div", { class: "boiler" }, el("h3", {}, b.name),
       el("div", { class: "t" }, deg(s)), el("div", { class: "lbl" }, "supply"),
       el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }),
       el("div", { class: "t" }, deg(r)), el("div", { class: "lbl" }, b.retNote ? `return (${b.retNote})` : "return"),
-      el("div", { class: "hint", style: "margin-top:4px" }, firing)));
+      el("div", { style: "margin-top:6px;font-size:14px" }, el("span", { class: "badge " + cls, style: "font-size:12px;padding:2px 10px" }, label), firing)));
   }
 }
 function renderAhuCards() {
@@ -622,8 +632,8 @@ async function refreshSchedule() {
     await Promise.all([loadStatus(), loadSchedules(), demo ? null : loadPoints()]);
     renderStatus();
     list.replaceChildren();
-    const scheds = state.scheds.filter(s => s.kind === "schedule").sort((a, b) => a.name.localeCompare(b.name));
-    const cals = state.scheds.filter(s => s.kind === "calendar" && (s.data?.dates || []).length);
+    // only the three air-handler schedules (Russ, 2026-11-05); the dehumidification, RCP and calendar objects stay in the data
+    const scheds = state.scheds.filter(s => s.kind === "schedule" && /^AHU-\d Schedule$/.test(s.name)).sort((a, b) => a.name.localeCompare(b.name));
     const note = $("#schedNote");
     if (!scheds.length) note.textContent = "No schedules yet: the poller reads them from the engine once an hour.";
     else {
@@ -631,11 +641,7 @@ async function refreshSchedule() {
       note.textContent = `Weekly schedules as programmed in the Johnson Controls engine (read ${ago(latest)}; checked again every hour). To change one, use Metasys: this page only shows them.`;
     }
     const now = new Date(); const todayIdx = (now.getDay() + 6) % 7; const nowMin = now.getHours() * 60 + now.getMinutes();
-    // the three air-handler schedules first, everything else below a line
-    const isMain = (s) => /^AHU-\d Schedule$/.test(s.name);
-    scheds.sort((a, b) => (isMain(b) - isMain(a)) || a.name.localeCompare(b.name));
     scheds.forEach((s, i) => {
-      if (!isMain(s) && (i === 0 || isMain(scheds[i - 1]))) list.append(el("hr", { class: "sep" }), el("div", { class: "hint", style: "margin-bottom:10px" }, "Other schedules in the engine"));
       const color = schedColor(s, i); const d = s.data || {}; const weekly = d.weekly || [];
       const target = s.target_point_id ? state.byId.get(s.target_point_id) : null;
       const nowVal = target && target.last_value != null ? target.last_value : s.present_value;
@@ -655,12 +661,6 @@ async function refreshSchedule() {
       card.append(grid);
       list.append(card);
     });
-    if (cals.length) {
-      const c = el("div", { class: "card" }, el("h2", {}, "Holiday calendars"), el("div", { class: "hint" }, "Dates listed in the engine's calendar objects. They only matter when a schedule has a holiday exception that uses them."));
-      for (const k of cals) c.append(el("div", { class: "alert" }, el("b", {}, k.name), el("span", {}, k.description || ""),
-        el("span", { class: "hint" }, (k.data.dates || []).map(x => x.date || (x.dateRange ? `${x.dateRange.startDate} to ${x.dateRange.endDate}` : JSON.stringify(x))).join(", "))));
-      list.append(c);
-    }
   } catch (e) { list.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load schedules: "), String(e.message || e))); }
   state.timer = setTimeout(refreshSchedule, 60000);
 }
@@ -716,7 +716,7 @@ function renderDetails() {
   const filters = el("div", { class: "filters" }, rangeBtns, picker, tableBtn, el("button", { onclick: downloadCsv }, "CSV"), el("button", { onclick: () => refreshAll() }, "Refresh"),
     el("span", { class: "hint" }, state.range === "24h" ? "1-minute values, refreshes every minute" : state.range === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
   screen(section("trends", "Trends", true, filters, el("div", { id: "charts" })),
-         section("controls", "Set from here", true, el("div", { id: "controls" })),
+         ALLOW_CHANGES ? section("controls", "Set from here", true, el("div", { id: "controls" })) : null,
          section("values", "Current values", true, el("div", { class: "hint" }, "Every logged point, by equipment. Click a value to add it to the trend chart; click a heading to open or close that group."), el("div", { id: "tiles" })),
          section("alerts", "Alerts", true, el("div", { id: "alerts" })),
          section("rules", "Alert rules", false, el("div", { id: "rules" })));
@@ -897,12 +897,18 @@ function renderAlerts() {
 }
 function renderRules() {
   const box = $("#rules"); if (!box) return;
-  box.replaceChildren(el("div", { class: "hint" }, "An alert fires when the condition has held for the given minutes, and clears by itself. Critical and warning go to phone and email; info to phone only."));
+  box.replaceChildren(el("div", { class: "hint" }, "An alert fires when the condition has held for the given minutes, and clears by itself. Critical and warning go to phone and email; info to phone only." +
+    (ALLOW_CHANGES ? "" : " Editing rules from this page is switched off for now.")));
   const t = el("table", { class: "rules" }, el("thead", {}, el("tr", {}, el("th", {}, "Name"), el("th", {}, "Point"), el("th", {}, "Condition"), el("th", {}, "Value"), el("th", {}, "Point 2"), el("th", {}, "Minutes"), el("th", {}, "Level"), el("th", {}, "On"), el("th", {}, ""))));
   const b = el("tbody");
-  const rows = [...state.rules, { id: null, name: "", point_id: state.points[0]?.id, condition: "below", threshold: null, point2_id: null, for_minutes: 15, level: "warning", enabled: true, _new: true }];
-  for (const r of rows) b.append(ruleRow(r));
+  const rows = ALLOW_CHANGES ? [...state.rules, { id: null, name: "", point_id: state.points[0]?.id, condition: "below", threshold: null, point2_id: null, for_minutes: 15, level: "warning", enabled: true, _new: true }] : state.rules;
+  for (const r of rows) b.append(ALLOW_CHANGES ? ruleRow(r) : ruleRowReadOnly(r));
   t.append(b); box.append(el("div", { class: "tablewrap" }, t));
+}
+function ruleRowReadOnly(r) {
+  const name = (id) => id ? (state.byId.get(id)?.display_name || String(id)) : "—";
+  return el("tr", {}, el("td", {}, r.name), el("td", {}, name(r.point_id)), el("td", {}, CONDITIONS[r.condition] || r.condition), el("td", { class: "num" }, r.threshold ?? "—"),
+    el("td", {}, name(r.point2_id)), el("td", { class: "num" }, r.for_minutes), el("td", {}, el("span", { class: "badge " + r.level }, r.level)), el("td", {}, r.enabled === false ? "off" : "on"), el("td", {}));
 }
 function ruleRow(r) {
   const pointSel = (val, allowNone) => el("select", {}, ...(allowNone ? [opt("", "—", !val)] : []), ...state.points.map(p => opt(p.id, p.display_name, p.id === val)));
@@ -942,7 +948,7 @@ function demoPoints() {
     out.push(mk(id++, `${fec}.ZN-TOCC`, fec, "binary", null, 0, 0, ["Inactive", "Active"], { values: [0, 1], priority: 8, label: "Temporary occupancy" }));
     out.push(mk(id++, `${fec}.OCC-SCHEDULE`, fec, "multistate", null, 2, 0, ["Occupied", "UnOccupied", "Standby", "Not Set"]));
   });
-  for (const [n, v] of [["AV-303", 123.0], ["AV-305", 118.4], ["AV-308", 100], ["AV-403", 112.2], ["AV-408", 0]]) out.push(mk(id++, `Boiler-1&2.${n}`, "Boiler-1&2", "analog", "no-units", v));
+  for (const [n, v] of [["AV-301", 3], ["AV-302", 0], ["AV-303", 123.0], ["AV-305", 118.4], ["AV-308", 100], ["AV-401", 0], ["AV-402", 0], ["AV-403", 112.2], ["AV-408", 0]]) out.push(mk(id++, `Boiler-1&2.${n}`, "Boiler-1&2", "analog", "no-units", v));
   out.push(mk(id++, "Local Application.HWS-T", "Local Application", "analog", "degrees-fahrenheit", 123.6));
   out.push(mk(id++, "Local Application.HWR-T", "Local Application", "analog", "degrees-fahrenheit", 119.1));
   for (let z = 1; z <= 11; z++) out.push(mk(id++, `FEC-5.ZN${z}SLAB-T`, "FEC-5", "analog", "degrees-fahrenheit", 70 + (z % 4)));
