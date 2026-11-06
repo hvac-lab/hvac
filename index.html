@@ -172,10 +172,11 @@ const AHUS = [
 const MAP = {
   bucket: "web", image: "map.png",
   spots: [
-    { label: "Kitchen and Dining", point: "FEC-7.ZN-T", x: 43, y: 38 },
-    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 41, y: 68 },
-    { label: "Worship", point: "FEC-8.ZN-T", x: 79, y: 72 },
-    { label: "Outdoor", point: "FEC-6.OA-T", x: 9, y: 8 },
+    // hum = a humidity point shown under the temperature (the AHUs measure it in their return air duct)
+    { label: "Kitchen and Dining", point: "FEC-7.ZN-T", hum: "FEC-7.RA-H", x: 43, y: 38 },
+    { label: "Fellowship Area", point: "FEC-6.ZN-T", hum: "FEC-6.RA-H", x: 41, y: 68 },
+    { label: "Worship", point: "FEC-8.ZN-T", hum: "FEC-8.RA-H", x: 79, y: 72 },
+    { label: "Outdoor", point: "FEC-6.OA-T", hum: "FEC-6.OA-H", x: 69, y: 27 },   // over the patio (Russ, 2026-11-05)
     // Other sensors the plan set shows (HVAC plan M2.2 / hydronic plan M3.2): FCU-1 in the Sound Room (FEC-9),
     // the vestibule cabinet heaters CUH-1/2 whose controller FEC-10 has its own zone sensor.
     { label: "Sound Room (FCU-1)", point: "FEC-9.FCU1-ZN-T", x: 54, y: 88, sm: true },
@@ -217,7 +218,7 @@ const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readEr
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
 // Tab order as Russ wants it (2026-11-05): Temperature, Map, Schedule, Details, Audit Changes.
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["sched", "Schedule"], ["details", "Details"], ["audit", "Audit Changes"]];
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["sched", "Schedule"], ["details", "Details"], ["audit", "Audit"]];
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -440,7 +441,8 @@ function renderTab() {
 
 // ------------------------------------------------------------------ Temperature tab
 function ahuPoints(a) {
-  return { zone: pt(`${a.fec}.ZN-T`), discharge: pt(`${a.fec}.DA-T`), setpoint: pt(`${a.fec}.ZNT-SP`), fan: pt(`${a.fec}.SF-S`), state: pt(`${a.fec}.AHU-STATE`), outdoor: pt(`${a.fec}.OA-T`) };
+  return { zone: pt(`${a.fec}.ZN-T`), discharge: pt(`${a.fec}.DA-T`), setpoint: pt(`${a.fec}.ZNT-SP`), fan: pt(`${a.fec}.SF-S`), state: pt(`${a.fec}.AHU-STATE`), outdoor: pt(`${a.fec}.OA-T`),
+           humidity: pt(`${a.fec}.RA-H`) };   // RA-H: humidity of the air coming back from the rooms, measured in the unit's return duct
 }
 function renderTemperature() {
   const cards = el("div", { class: "ahus", id: "ahuCards" });
@@ -537,6 +539,7 @@ function renderAhuCards() {
       el("h3", {}, a.name), el("div", { class: "where" }, a.where),
       el("div", { class: "big" }, val(p.zone), el("small", {}, "zone")),
       el("div", { class: "row" }, el("span", {}, "Discharge air"), el("span", {}, val(p.discharge) + " °F")),
+      p.humidity ? el("div", { class: "row" }, el("span", {}, "Humidity (return air)"), el("span", {}, val(p.humidity) + " % RH")) : null,
       el("div", { class: "row" }, el("span", {}, "Setpoint"), el("span", {}, val(p.setpoint) + " °F", ...(p.setpoint ? badges(p.setpoint.last_flags) : []))),
       el("div", { class: "row" }, el("span", {}, "Supply fan"), el("span", {}, p.fan ? (fanOn ? "On" : "Off") : "–")),
       p.state ? el("div", { class: "row" }, el("span", {}, "State"), el("span", {}, val(p.state))) : null,
@@ -563,7 +566,9 @@ async function refreshTemperature() {
     if (!series.length) holder.append(el("div", { class: "hint" }, "Tick at least one air handler and one temperature."));
     else {
       const built = buildSeries(data, series);
-      if (state.tempSmooth) for (const s of built.series) { s.ys = smooth(s.ys, state.tempRange === "24h" ? 5 : 3); if (s.mins) { s.mins = smooth(s.mins, 3); s.maxs = smooth(s.maxs, 3); } }
+      // The AHU sensors report in 0.3 °F steps, so 1-minute values are a staircase; a 15-minute centred average turns the
+      // steps into gentle ramps (Russ, 2026-11-05: "why isn't the 24 h graph smooth"). Longer ranges are already averages.
+      if (state.tempSmooth) for (const s of built.series) { s.ys = smooth(s.ys, state.tempRange === "24h" ? 15 : 3); if (s.mins) { s.mins = smooth(s.mins, 3); s.maxs = smooth(s.maxs, 3); } }
       if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 320, curved: true });
     }
     await refreshBoilerChart();
@@ -666,8 +671,9 @@ function drawSpots() {
   box.querySelectorAll("svg.spot-lines").forEach(s => s.remove());
   MAP.spots.forEach((s, i) => {
     const p = pt(s.point); const v = p ? fmtVal(p, p.last_value) : "–";
+    const h = s.hum ? pt(s.hum) : null; const rh = h && h.last_value != null ? ` · ${Number(h.last_value).toFixed(0)} % RH` : "";
     box.append(el("div", { class: "spot" + (s.sm ? " sm" : ""), "data-i": i, style: `left:${s.x}%;top:${s.y}%;--sc:${s.sm ? css("--s7") : css(SERIES[i % SERIES.length])}`, title: p ? `${p.display_name}, ${ago(p.last_ts)}` : s.point },
-      v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label)));
+      v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label + rh)));
   });
   // keep the small floor markers clear of the big room boxes, whatever the screen size
   const bigs = [...box.querySelectorAll(".spot:not(.sm)")].map(b => b.getBoundingClientRect());
@@ -696,7 +702,7 @@ function drawSpots() {
     if (!(t < 1)) continue;   // the sensor lies under the box: nothing to draw
     const x1 = cx + dx * t, y1 = cy + dy * t;
     const line = document.createElementNS(NS, "line");
-    for (const [k, v] of Object.entries({ x1, y1, x2, y2, stroke: lineColor, "stroke-width": 2, "stroke-dasharray": "5 4", opacity: .85 })) line.setAttribute(k, v);
+    for (const [k, v] of Object.entries({ x1, y1, x2, y2, stroke: lineColor, "stroke-width": 2.5, opacity: .9 })) line.setAttribute(k, v);   // solid (Russ, 2026-11-05)
     const dot = document.createElementNS(NS, "circle");
     for (const [k, v] of Object.entries({ cx: x2, cy: y2, r: 5, fill: lineColor, stroke: "#fff", "stroke-width": 1.5 })) dot.setAttribute(k, v);
     svg.append(line, dot);
@@ -1012,6 +1018,8 @@ function demoPoints() {
   out.push(mk(id++, "Local Application.HWR-T", "Local Application", "analog", "degrees-fahrenheit", 119.1));
   for (let z = 1; z <= 11; z++) out.push(mk(id++, `FEC-5.ZN${z}SLAB-T`, "FEC-5", "analog", "degrees-fahrenheit", 70 + (z % 4)));
   out.push(mk(id++, "FEC-6.OA-T", "FEC-6", "analog", "degrees-fahrenheit", 30.5), mk(id++, "FEC-9.FCU1-ZN-T", "FEC-9", "analog", "degrees-fahrenheit", 70.0), mk(id++, "FEC-10.ZN-T", "FEC-10", "analog", "degrees-fahrenheit", 69.0));
+  out.push(mk(id++, "FEC-6.OA-H", "FEC-6", "analog", "percent-relative-humidity", 96.0));
+  for (const [fec, h] of [["FEC-6", 39.4], ["FEC-7", 44.4], ["FEC-8", 36.9]]) out.push(mk(id++, `${fec}.RA-H`, fec, "analog", "percent-relative-humidity", h));
   return out;
 }
 function demoExtras() {
