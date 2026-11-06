@@ -95,8 +95,9 @@
   .spot { position: absolute; transform: translate(-50%, -50%); background: var(--surface); border: 3px solid var(--sc, var(--s1)); border-radius: 16px; padding: 8px 18px; font-size: 28px; font-weight: 650; white-space: nowrap; box-shadow: 0 3px 12px rgba(0,0,0,.25); line-height: 1.15; text-align: center; }
   .spot small { display:block; font-size: 14px; font-weight: 400; color: var(--muted); }
   .spot.sm { font-size: 15px; padding: 2px 7px; border-radius: 8px; border-width: 2px; border-style: dashed; box-shadow: 0 1px 4px rgba(0,0,0,.2); } .spot.sm small { font-size: 9px; }
-  @media (max-width: 700px) { .spot { font-size: 20px; padding: 4px 10px; border-radius: 10px; border-width: 2px; } .spot small { font-size: 11px; } .map img { max-height: none; }
-    .spot.sm { font-size: 11px; padding: 1px 4px; border-radius: 6px; } .spot.sm small { display: none; } }
+  /* The floor plan is never shrunk below the picture's own size: on a phone it scrolls sideways and is pinched/zoomed
+     like an ordinary web page, so the temperature boxes keep their places and never pile up (Russ, 2026-11-05). */
+  .mapscroll { overflow: auto; -webkit-overflow-scrolling: touch; }
   hr.sep { border: 0; border-top: 2px solid var(--axis); margin: 20px 0 14px; }
   .boilers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; text-align: center; }
   .boiler h3 { margin: 0 0 6px; font-size: 19px; }
@@ -106,10 +107,12 @@
   .boiler .st { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap; font-size: 15px; font-weight: 700; padding: 6px 16px; border-radius: 999px; color: #fff; background: #5a5955; letter-spacing: .02em; box-shadow: 0 2px 10px rgba(0,0,0,.45); border: 2px solid #fff; }
   .boiler .st.ok { background: #0b7a0b; } .boiler .st.err { background: #b00020; } .boiler .st.warn { background: #b36b00; }
   main.wide { max-width: none; padding: 10px; }
-  .map.full { display: block; width: 100%; } .map.full img { width: 100%; max-width: 100%; max-height: none; height: auto; }
+  .map.full { display: block; width: 100%; max-width: none; } .map.full img { width: 100%; max-width: none; max-height: none; height: auto; }
   .spot-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   table.vals tbody tr:hover td { background: var(--hover); }
-  table.vals td.num { font-weight: 600; }
+  table.vals td.num, table.vals th.num { font-weight: 600; text-align: center; }
+  th.sortable { cursor: pointer; user-select: none; white-space: nowrap; } th.sortable:hover { color: var(--ink); text-decoration: underline; }
+  th.sortable[data-dir="asc"]::after { content: " \25B2"; font-size: 9px; } th.sortable[data-dir="desc"]::after { content: " \25BC"; font-size: 9px; }
   summary::-webkit-details-marker { display: none; }
   details.sec { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
   details.sec > summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; list-style: none; display: flex; align-items: center; gap: 8px; }
@@ -170,7 +173,7 @@ const MAP = {
   bucket: "web", image: "map.png",
   spots: [
     { label: "Kitchen and Dining", point: "FEC-7.ZN-T", x: 43, y: 38 },
-    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 46, y: 68 },
+    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 41, y: 68 },
     { label: "Worship", point: "FEC-8.ZN-T", x: 79, y: 72 },
     { label: "Outdoor", point: "FEC-6.OA-T", x: 9, y: 8 },
     // Other sensors the plan set shows (HVAC plan M2.2 / hydronic plan M3.2): FCU-1 in the Sound Room (FEC-9),
@@ -184,7 +187,7 @@ const MAP = {
     { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 88.1, sy: 64.4, sm: true },
     { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 91, sx: 78.3, sy: 85.4, sm: true },
     { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.9, sy: 86.0, sm: true },
-    { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 7, y: 68, sx: 8.5, sy: 61.1, sm: true },
+    { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 14, y: 67, sx: 8.5, sy: 61.1, sm: true },  // right of the vestibule (Russ, 2026-11-05)
     { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 21.6, sy: 63.0, sm: true },
     { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 23.0, sy: 53.6, sm: true },
     { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 32.8, sy: 52.1, sm: true },  // dining room (Russ, 2026-11-05)
@@ -380,6 +383,35 @@ function badges(flags) {
   return out;
 }
 function pt(name) { return state.byName.get(name) || null; }
+// Equipment a point belongs to, in the page's words ("AHU-3 - Worship Area"); schedules by their AHU name
+function equipmentOf(p) { return p ? (GROUPS[p.group_name] || p.group_name || "") : ""; }
+function equipmentOfName(name) { const a = AHUS.find(x => String(name || "").startsWith(x.key + " ")); return a ? `${a.name} - ${a.where}` : ""; }
+// Click a heading to sort that table (Russ, 2026-11-05). Cells can carry data-sort for the real value (dates, numbers);
+// the chosen column and direction are kept per table key so a minute-refresh rebuild keeps the order.
+const sortState = {};
+function sortable(table, key) {
+  const ths = [...table.querySelectorAll("thead th")];
+  const apply = () => {
+    const st = sortState[key]; ths.forEach((th, i) => { th.dataset.dir = st && i === st.col ? st.dir : ""; });
+    if (!st) return;
+    const tb = table.tBodies[0]; if (!tb) return;
+    const val = (r) => { const td = r.cells[st.col]; return td ? (td.dataset.sort != null ? td.dataset.sort : td.textContent.trim()) : ""; };
+    const rows = [...tb.rows].map((r, i) => [r, i]);
+    rows.sort(([a, ia], [b, ib]) => {
+      const x = val(a), y = val(b); const nx = Number(x), ny = Number(y);
+      let c = x !== "" && y !== "" && !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: "base" });
+      if (x === "" && y !== "") c = 1; else if (y === "" && x !== "") c = -1;   // blanks last either way
+      return c ? (st.dir === "desc" ? -c : c) : ia - ib;
+    });
+    tb.append(...rows.map(([r]) => r));
+  };
+  ths.forEach((th, i) => {
+    if (!th.textContent.trim()) return;
+    th.classList.add("sortable"); th.title = "Click to sort";
+    th.addEventListener("click", () => { const st = sortState[key]; sortState[key] = { col: i, dir: st && st.col === i && st.dir === "asc" ? "desc" : "asc" }; apply(); });
+  });
+  apply();
+}
 function renderStatus() {
   const s = state.status;
   if (!s || !s.last_seen) { setStatus("warn", "poller: no data yet"); return; }
@@ -620,11 +652,12 @@ function renderMap() {
   const note = el("div", { class: "card hint" }, "Room temperatures (big) and in-floor slab temperatures (small, dashed, placed from the hydronic plan's S1 sensor marks) drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot.");
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
     `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
-  img.onload = () => drawSpots();
+  // never smaller than the picture itself: a phone scrolls sideways and pinches instead of squeezing the boxes together
+  img.onload = () => { box.style.minWidth = img.naturalWidth + "px"; drawSpots(); };
   imageUrl(MAP.image).then(u => { img.src = u; });
   box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
   box.append(img, coords);
-  screen(note, box);
+  screen(note, el("div", { class: "mapscroll" }, box));
   refreshMap();
 }
 function drawSpots() {
@@ -773,7 +806,7 @@ async function refreshAudit() {
     box.replaceChildren();
     if (!rows.length) { box.append(el("div", { class: "hint" }, "No changes recorded yet. The log started when this version of the logger was installed.")); }
     else {
-      const t = el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "When"), el("th", {}, "What"), el("th", {}, "Item"), el("th", { class: "desc" }, "Description"),
+      const t = el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "When"), el("th", {}, "What"), el("th", {}, "Equipment"), el("th", {}, "Item"), el("th", { class: "desc" }, "Description"),
         el("th", { class: "ctr" }, "From"), el("th", { class: "ctr" }, "To"), el("th", {}, "By"))));
       const b = el("tbody");
       for (const c of rows) {
@@ -784,13 +817,15 @@ async function refreshAudit() {
         const what = c.kind === "value" ? "setting changed" : c.kind === "override" ? (c.note || "override") : sched ? "schedule edited" : c.kind;
         const by = c.source === "website" ? (c.who || "this site") : "Metasys";
         const desc = sched ? (s && s.description) || "weekly schedule" : (p && p.description) || "";
+        const where = sched ? equipmentOfName(c.point_name) : (p ? equipmentOf(p) : equipmentOf({ group_name: String(c.point_name || "").split(".")[0] }));
         const cell = (v) => sched ? el("pre", { style: "margin:0;font:12px/1.3 monospace;white-space:pre-wrap;text-align:left" }, v || "") : (v == null ? "–" : v + unit);
-        b.append(el("tr", {}, el("td", {}, when(c.ts)), el("td", {}, el("span", { class: "badge " + (c.kind === "override" ? "ovr" : sched ? "" : "ok") }, what)),
-          el("td", {}, c.point_name), el("td", { class: "desc" }, desc),
-          el("td", { class: "ctr" }, cell(c.old_value)), el("td", { class: "ctr" }, cell(c.new_value)),
+        const num = (v) => sched || v == null || isNaN(Number(v)) ? null : String(Number(v));
+        b.append(el("tr", {}, el("td", { "data-sort": c.ts }, when(c.ts)), el("td", {}, el("span", { class: "badge " + (c.kind === "override" ? "ovr" : sched ? "" : "ok") }, what)),
+          el("td", {}, where), el("td", {}, c.point_name), el("td", { class: "desc" }, desc),
+          el("td", { class: "ctr", "data-sort": num(c.old_value) }, cell(c.old_value)), el("td", { class: "ctr", "data-sort": num(c.new_value) }, cell(c.new_value)),
           el("td", {}, by)));
       }
-      t.append(b); box.append(el("div", { class: "tablewrap" }, t));
+      t.append(b); box.append(el("div", { class: "tablewrap" }, t)); sortable(t, "audit");
     }
   } catch (e) { box.replaceChildren(el("b", {}, "Could not load the change log: "), String(e.message || e)); }
   state.timer = setTimeout(refreshAudit, 60000);
@@ -833,10 +868,11 @@ function buildTiles() {
       const short = g && p.display_name.startsWith(g + ".") ? p.display_name.slice(g.length + 1) : p.display_name;
       tb.append(el("tr", { title: p.object_name || p.display_name },
         el("td", {}, short, p.command_rule ? " ⚙" : ""), el("td", { class: "desc" }, p.description || ""),
-        el("td", { class: "num" }, fmtVal(p, p.last_value) + (p.kind === "analog" && unitLabel(p.units) ? " " + unitLabel(p.units) : "")),
-        el("td", { class: "hint" }, ago(p.last_ts)), el("td", {}, ...badges(p.last_flags))));
+        el("td", { class: "num", "data-sort": p.kind === "analog" && p.last_value != null ? String(Number(p.last_value)) : null }, fmtVal(p, p.last_value) + (p.kind === "analog" && unitLabel(p.units) ? " " + unitLabel(p.units) : "")),
+        el("td", { class: "hint", "data-sort": p.last_ts || "" }, ago(p.last_ts)), el("td", {}, ...badges(p.last_flags))));
     }
     const grid = el("table", { class: "vals" }, el("thead", {}, el("tr", {}, el("th", {}, "Item"), el("th", { class: "desc" }, "Description"), el("th", { class: "num" }, "Value"), el("th", {}, "Updated"), el("th", {}, ""))), tb);
+    sortable(grid, "vals." + g);
     const d = el("details", { class: "grp" }, el("summary", {}, GROUPS[g] || g || "(other)", el("span", { class: "hint" }, `${pts.length} points`)), grid);
     d.open = store.get("grp." + g, /^FEC-[678]$/.test(String(g)));
     d.addEventListener("toggle", () => store.set("grp." + g, d.open));
@@ -926,6 +962,7 @@ function renderRules() {
   const rows = ALLOW_CHANGES ? [...state.rules, { id: null, name: "", point_id: state.points[0]?.id, condition: "below", threshold: null, point2_id: null, for_minutes: 15, level: "warning", enabled: true, _new: true }] : state.rules;
   for (const r of rows) b.append(ALLOW_CHANGES ? ruleRow(r) : ruleRowReadOnly(r));
   t.append(b); box.append(el("div", { class: "tablewrap" }, t));
+  if (!ALLOW_CHANGES) sortable(t, "rules");
 }
 function ruleRowReadOnly(r) {
   const name = (id) => id ? (state.byId.get(id)?.display_name || String(id)) : "—";
