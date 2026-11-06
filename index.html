@@ -799,18 +799,21 @@ function fitMap() {
     wrap.style.height = ""; v.k = Math.min(wrap.clientWidth / box.offsetWidth, wrap.clientHeight / box.offsetHeight);
   } else {
     v.k = Math.min(1, wrap.clientWidth / box.offsetWidth);
-    wrap.style.height = Math.round(box.offsetHeight * v.k) + "px";
+    wrap.style.height = frameHeight(box, wrap, v.k) + "px";
   }
   setMapView(v.z, v.tx, v.ty);
+}
+// The frame runs from under the tabs to the bottom of the screen whenever that is taller than the fitted plan, with the
+// plan centred in it, so a phone always has the room to pinch and nothing jumps when a pinch starts (Russ, 2026-11-06:
+// "center the diagram on the black part of the screen, it currently jumps down when I try to pinch it").
+function frameHeight(box, wrap, k) {
+  return Math.max(Math.round(box.offsetHeight * k), Math.floor(window.innerHeight - Math.max(0, wrap.getBoundingClientRect().top) - 8));
 }
 function setMapView(z, tx, ty) {
   const box = $("#mapBox"); const wrap = box && box.parentElement; if (!box || !wrap) return;
   const v = state.mapView; v.z = Math.max(1, Math.min(8, z));
   const s = v.k * v.z, cw = box.offsetWidth * s, ch = box.offsetHeight * s;
-  if (!wrap.classList.contains("fs")) {   // zoomed in: the frame also takes the screen below the plan instead of staying a short strip (Russ, 2026-11-06, phone)
-    const fitH = Math.round(box.offsetHeight * v.k);
-    wrap.style.height = (v.z > 1 ? Math.max(fitH, Math.floor(window.innerHeight - wrap.getBoundingClientRect().top - 8)) : fitH) + "px";
-  }
+  if (!wrap.classList.contains("fs")) wrap.style.height = frameHeight(box, wrap, v.k) + "px";
   // smaller than the frame: centred; bigger: no gap at any edge
   v.tx = cw <= wrap.clientWidth ? (wrap.clientWidth - cw) / 2 : Math.min(0, Math.max(wrap.clientWidth - cw, tx));
   v.ty = ch <= wrap.clientHeight ? (wrap.clientHeight - ch) / 2 : Math.min(0, Math.max(wrap.clientHeight - ch, ty));
