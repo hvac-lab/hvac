@@ -863,13 +863,18 @@ function boilerRoomSvg() {
   const tag = (x, y, letters, value, side = "r", big = false) => `<circle cx="${x}" cy="${y}" r="13" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/><text x="${x}" y="${y + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="${ink2}">${letters}</text>` +
     `<text x="${side === "r" ? x + 19 : x - 19}" y="${y + (big ? 6 : 5)}" text-anchor="${side === "r" ? "start" : "end"}" font-size="${big ? 17 : 14}" font-weight="700" fill="${ink}">${esc(value)}</text>`;
   const label = (x, y, text, anchor = "start", size = 11, color = muted, weight = 400) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${color}" font-weight="${weight}">${esc(text)}</text>`;
+  // shut-off ball valve (the schematic's circle-on-the-pipe), drain valve (solid dot on a stub), pressure gauge, air vent
+  const ball = (x, y, r = 7) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/><line x1="${x - r}" y1="${y}" x2="${x + r}" y2="${y}" stroke="${ink2}" stroke-width="1.6"/>`;
+  const drain = (x, y, dir, text) => `<path d="M ${x} ${y} ${dir === "d" ? `V ${y + 12}` : dir === "l" ? `H ${x - 12}` : `H ${x + 12}`}" stroke="${ink2}" stroke-width="1.5"/><circle cx="${dir === "d" ? x : dir === "l" ? x - 12 : x + 12}" cy="${dir === "d" ? y + 12 : y}" r="4" fill="${ink2}"/>` + (text ? label(dir === "l" ? x - 18 : dir === "r" ? x + 18 : x, dir === "d" ? y + 24 : y + 3, text, dir === "l" ? "end" : dir === "r" ? "start" : "middle", 7) : "");
+  const gauge = (x, y) => `<circle cx="${x}" cy="${y}" r="8" fill="${surface}" stroke="${ink2}" stroke-width="1.4"/><text x="${x}" y="${y + 3.5}" text-anchor="middle" font-size="9" font-weight="700" fill="${ink2}">P</text>`;
+  const vent = (x, y, text) => `<path d="M ${x} ${y - 10} l -6 10 h 12 z" fill="${surface}" stroke="${ink2}" stroke-width="1.4"/>` + (text ? label(x + 8, y - 2, text, "start", 7) : "");
   let s = "";
-  // --- return header from the system (bottom left) up to the two boilers
+  // --- return header from the system (bottom left) up to the two boilers, a shut-off ball valve on each boiler's return
   s += pipe("M 40 470 H 140 V 400 H 370", blue, flowCls) + pipe("M 210 400 V 330", blue, flowCls) + pipe("M 370 400 V 330", blue, flowCls);
   s += arrow(100, 470, "r", blue) + arrow(140, 430, "u", blue);
-  s += label(40, 492, "FROM SYSTEM (return)", "start", 11, ink2, 600) + label(40, 506, "3\" HWR", "start", 10);
+  s += label(40, 492, "FROM SYSTEM (return)", "start", 11, ink2, 600) + label(40, 506, "3\" HWR (2\" branch)", "start", 10);
   s += tag(80, 440, "T", num(BR.hwr, 1, " °F"), "r", true) + label(99, 426, "return water (HWR-T)", "start", 10);
-  s += valve(210, 365, true) + valve(370, 365, true);
+  s += ball(210, 365) + ball(370, 365) + label(386, 369, "shut-off", "start", 7);
   // --- boilers
   BR.boilers.forEach((bb, i) => {
     const x = i === 0 ? 160 : 320; const st = boilerState(bb.b);
@@ -887,32 +892,43 @@ function boilerRoomSvg() {
     s += label(x + 50, 286, num(bb.b.supply, 1, " °F"), "middle", 18, ink, 700) + label(x + 50, 298, "outlet", "middle", 9);
     if (st.fire > 0) s += label(x + 50, 312, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700); else s += label(x + 50, 312, "not firing", "middle", 10);
     if (i === 0) s += label(x + 50, 324, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
-    // relief valve + condensate stub, as drawn
-    s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(x + 104, 240, "relief", "start", 8);
-    s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 350, "condensate", "start", 8);
+    // pressure relief valve (piped down to 12" above the floor) and the condensate line through its acid neutralizer, as drawn
+    s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + `<path d="M 128 250 V 300" transform="translate(${x},0)" stroke="${ink2}" stroke-width="1"/>` + label(x + 104, 240, "relief valve", "start", 7);
+    s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 346, "condensate via", "start", 7) + label(x + 128, 354, "acid neutralizer", "start", 7);
   });
-  // --- supply risers to the top header, then to the air separator
+  // --- supply risers to the top header (shut-off ball valve, then the balancing valve, as drawn), then to the air separator
   s += pipe("M 210 200 V 120 H 600 V 150", red, flowCls) + pipe("M 370 200 V 120", red, flowCls);
   s += arrow(290, 120, "r", red) + arrow(480, 120, "r", red);
-  s += valve(210, 160, true, "balance 51 gpm") + valve(370, 160, true, "balance 51 gpm");
+  s += ball(210, 142) + ball(370, 142) + valve(210, 170, true, "balance 51 gpm") + valve(370, 170, true, "balance 51 gpm") + label(224, 145, "shut-off", "start", 7);
   s += label(500, 110, "3\" HWS", "start", 10);
-  // --- coalescing air separator with air vent on top and blow-down valve below
-  s += `<path d="M 600 92 l -7 12 h 14 z" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(614, 100, "air vent", "start", 9);
-  s += `<rect x="578" y="150" width="44" height="70" rx="20" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + label(632, 180, "coalescing", "start", 9) + label(632, 191, "air separator", "start", 9);
-  s += `<path d="M 600 220 V 232" stroke="${ink2}" stroke-width="2"/><circle cx="600" cy="238" r="5" fill="${ink2}"/>` + label(610, 242, "blow-down", "start", 8);
-  // --- expansion tank and glycol feeder on a branch off the separator outlet
+  // --- coalescing air separator (B&G CRS-4F) with high-capacity air vent on top and blow-down valve below
+  s += vent(600, 104, "high-capacity air vent") + `<path d="M 600 104 V 150" stroke="${ink2}" stroke-width="1.5"/>`;
+  s += `<rect x="578" y="150" width="44" height="70" rx="20" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + label(632, 176, "coalescing", "start", 9) + label(632, 187, "air separator", "start", 9) + label(632, 197, "B&G CRS-4F", "start", 7.5);
+  s += `<path d="M 600 220 V 232" stroke="${ink2}" stroke-width="2"/><circle cx="600" cy="238" r="5" fill="${ink2}"/>` + label(610, 242, "blow-down valve", "start", 8);
+  // --- expansion tank and glycol feeder on a horizontal take-off from the separator outlet: shut-off, air vent, gauge, drain
   s += pipe("M 600 220 V 300", red, flowCls);
   s += `<path d="M 600 262 H 770 V 280 M 770 262 H 860 V 282" fill="none" stroke="${red}" stroke-width="2.5"/>`;
+  s += ball(640, 262, 6) + label(648, 256, "1\" HWS, take-off horizontal", "start", 7) + drain(700, 262, "d", "drain");
+  s += vent(770, 252, "") + label(780, 246, "air vent", "start", 7) + gauge(800, 270) + label(800, 288, "gauge", "middle", 7);
+  s += ball(820, 262, 6) + label(814, 256, "3/4\"", "end", 7);
   s += `<rect x="752" y="280" width="36" height="60" rx="14" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + label(770, 356, "EXP-1A", "middle", 9) + label(770, 366, "expansion tank", "middle", 8);
-  s += `<rect x="830" y="282" width="60" height="50" rx="4" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + `<rect x="842" y="272" width="36" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(860, 348, "glycol feeder", "middle", 9);
-  // --- two circulating pumps in parallel, each with a VFD (drawn on the outer side), suction diffuser (small square) and triple-duty valve
+  s += `<rect x="830" y="282" width="60" height="50" rx="4" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + `<rect x="842" y="272" width="36" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(860, 348, "glycol feeder tank", "middle", 9) + label(860, 358, "with its own pump", "middle", 7);
+  // --- two circulating pumps in parallel, each with a shut-off, suction diffuser (B&G DD-3, with drain), VFD on the outer side,
+  //     pressure gauge across the pump on the inner side, and a triple-duty valve on the discharge
   s += pipe("M 540 300 H 660", red, flowCls) + pipe("M 540 300 V 330", red, flowCls) + pipe("M 660 300 V 330", red, flowCls);
   s += pipe("M 540 372 V 452 H 660 V 372", red, flowCls) + pipe("M 600 452 V 505", red, flowCls) + arrow(600, 490, "d", red);
+  s += label(600, 318, "shut-off · suction diffuser B&G DD-3", "middle", 7);
   BR.pumps.forEach((pp, i) => {
     const x = i === 0 ? 540 : 660; const run = on(pp.s), cmd = on(pp.c), alarm = on(pp.a); const lo = pt(pp.lo); const locked = lo && lo.last_value != null && Number(lo.last_value) !== 1;
     const stroke = alarm || locked ? bad : run ? good : grid; const mismatch = cmd !== run && has(pp.c) && has(pp.s);
+    const out = i === 0 ? -1 : 1;   // outer side: left for CP-1, right for CP-2
+    s += ball(x, 311, 5);
     s += `<rect x="${x - 6}" y="322" width="12" height="12" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>`;   // suction diffuser
+    s += drain(x + out * 6, 328, out < 0 ? "l" : "r", "");
     s += `<circle cx="${x}" cy="352" r="20" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 4 : 2}"/>` + `<path d="M ${x} 352 l 12 -14 a 20 20 0 0 1 2 24 z" fill="${stroke}" opacity=".85"/>`;
+    // gauge piped across suction and discharge on the inner side, with its ball valve
+    const gx = x - out * 30;
+    s += `<path d="M ${x - out * 6} 328 H ${gx} V 376 H ${x - out * 6}" fill="none" stroke="${ink2}" stroke-width="1.2"/>` + gauge(gx, 352) + ball(gx, 366, 3.5);
     const vx = i === 0 ? x - 62 : x + 28;
     s += `<rect x="${vx}" y="344" width="34" height="16" rx="3" fill="${alarm ? bad : surface}" stroke="${alarm ? bad : ink2}" stroke-width="1.5"/>` + label(vx + 17, 356, "VFD", "middle", 9, alarm ? "#fff" : ink2, 700);
     s += valve(x, 386, true);
@@ -924,12 +940,19 @@ function boilerRoomSvg() {
     if (alarm) s += label(lx, 424, "VFD ALARM", anchor, 10, bad, 700); else if (locked) s += label(lx, 424, "LOCKOUT", anchor, 10, bad, 700);
     else if (mismatch) s += label(lx, 424, cmd ? "commanded on, not running" : "running, not commanded", anchor, 9, bad, 700);
     else if (hours) s += label(lx, 424, hours, anchor, 8);
+    s += label(x - out * 13, 399, "triple-duty valve", out < 0 ? "start" : "end", 7);
   });
   // --- boiler supply water sensor and out to the system; the loop pressure sensor lives upstairs (M3.2) but belongs to the same supply
   s += tag(600, 523, "T", num(BR.hws, 1, " °F"), "r", true) + label(619, 509, "supply water (HWS-T)", "start", 10);
-  s += pipe("M 600 536 V 560 H 760", red, flowCls) + arrow(720, 560, "r", red);
-  s += label(770, 564, "TO SYSTEM (supply)", "start", 11, ink2, 600) + label(770, 578, "3\" HWS to the AHUs, CUH-1/2 and the 11 floor manifolds", "start", 9);
+  s += pipe("M 600 536 V 560 H 985", red, flowCls) + arrow(720, 560, "r", red) + arrow(940, 560, "r", red);
+  s += label(985, 549, "TO SYSTEM (supply)", "end", 11, ink2, 600) + label(985, 538, "3\" HWS to the AHUs, CUH-1/2 and the 11 floor manifolds", "end", 8.5);
   s += tag(520, 560, "ΔP", num(BR.dp, 1, " psi"), "l") + label(500, 546, `loop pressure (setpoint ${num(BR.dpsp, 0, " psi")})`, "end", 9);
+  // --- bypass filter and chemical feeder (detail 3/M3.1): a 1-1/4" side loop off the mains near AHU-1, drawn here in small
+  s += `<path d="M 800 560 V 584 H 955" fill="none" stroke="${red}" stroke-width="1.6"/>` + `<path d="M 955 584 V 606 H 800" fill="none" stroke="${blue}" stroke-width="1.6"/>`;
+  s += ball(816, 584, 4) + `<rect x="838" y="577" width="12" height="14" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(844, 575, "flow 10 gpm", "middle", 6.5);
+  s += `<rect x="872" y="578" width="10" height="16" rx="5" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(877, 575, "by-pass filter", "middle", 6.5);
+  s += ball(900, 584, 4) + `<rect x="914" y="574" width="20" height="22" rx="3" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(924, 571, "chemical feeder", "middle", 6.5) + label(924, 604, "Neptune DBFC-5", "middle", 6) + ball(945, 584, 4);
+  s += label(800, 618, "bypass filter and chemical feeder loop, 1-1/4\", back into the return (detail 3/M3.1, sits by AHU-1)", "start", 7);
   // --- boiler control system box with the outdoor reset sensor, as drawn, showing the setpoint it computes
   s += `<rect x="20" y="200" width="112" height="78" rx="6" fill="${surface}" stroke="${ink2}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
   s += label(76, 216, "BOILER CONTROL", "middle", 9, ink2, 700) + label(76, 234, "setpoint", "middle", 9) + label(76, 252, num(BR.sp, 1, " °F"), "middle", 16, ink, 700);
@@ -937,8 +960,8 @@ function boilerRoomSvg() {
   s += `<path d="M 132 239 H 160" stroke="${ink2}" stroke-width="1.2" stroke-dasharray="3 3"/>`;
   s += tag(40, 150, "T", num(BR.oat, 1, " °F"), "r") + label(59, 136, "outdoor reset (OA-T)", "start", 10) + `<path d="M 40 163 V 200" stroke="${ink2}" stroke-width="1.2" stroke-dasharray="3 3"/>`;
   // --- title and source
-  s += label(500, 596, "after sheet M3.1, detail 2 \"Boiler piping schematic\" (WSN, 2013); valve and sensor positions as drawn, live values from the logger", "middle", 9);
-  return `<svg viewBox="0 0 1000 606" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
+  s += label(500, 636, "after sheet M3.1, details 2, 3 and 5 (WSN, 2013): valves, gauges, vents and sensors as drawn; live values from the logger", "middle", 9);
+  return `<svg viewBox="0 0 1000 644" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
 }
 
 // ------------------------------------------------------------------ Schedule tab (read from the engine's Schedule objects)
