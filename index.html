@@ -95,10 +95,10 @@
   .spot { position: absolute; transform: translate(-50%, -50%); background: var(--surface); border: 3px solid var(--sc, var(--s1)); border-radius: 16px; padding: 8px 18px; font-size: 28px; font-weight: 650; white-space: nowrap; box-shadow: 0 3px 12px rgba(0,0,0,.25); line-height: 1.15; text-align: center; }
   .spot small { display:block; font-size: 14px; font-weight: 400; color: var(--muted); }
   .spot.sm { font-size: 15px; padding: 2px 7px; border-radius: 8px; border-width: 2px; border-style: dashed; box-shadow: 0 1px 4px rgba(0,0,0,.2); } .spot.sm small { font-size: 9px; }
-  /* The floor plan is never shrunk below the picture's own size. On the Floor plan tab the whole page is made that
-     wide (body min-width set when the picture loads), not a scrolling box inside the page: a phone then behaves like
-     any wide web page - pinch out until the plan fills the screen, pinch in and pan to read a box - and the
-     temperature boxes keep their places and never pile up (Russ, 2026-11-05/06). */
+  /* The floor plan is laid out at the picture's own size (1219 px, boxes included) and then the whole thing is scaled
+     down to the screen width (fitMap), so a phone sees the entire plan at once and pinches in to read a box; the boxes
+     shrink with the picture and never pile up (Russ, 2026-11-05/06). .mapfit clips the unscaled layout box. */
+  .mapfit { overflow: hidden; }
   hr.sep { border: 0; border-top: 2px solid var(--axis); margin: 20px 0 14px; }
   .boilers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; text-align: center; }
   .boiler h3 { margin: 0 0 6px; font-size: 19px; }
@@ -440,7 +440,6 @@ function renderTab() {
   state.charts.forEach(c => c.destroy()); state.charts = [];
   renderTabs();
   main.classList.toggle("wide", state.tab === "map");
-  if (state.tab !== "map") document.body.style.minWidth = "";   // the Floor plan tab widens the page to the picture
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
   else if (state.tab === "sched") renderSchedule();
@@ -660,14 +659,21 @@ function renderMap() {
   const note = el("div", { class: "card hint" }, "Room temperatures (big) and in-floor slab temperatures (small, dashed, placed from the hydronic plan's S1 sensor marks) drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot.");
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
     `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
-  // never smaller than the picture itself, and the whole page is made that wide: a phone then pinches out until the
-  // plan fills the screen and pinches in to read, like any wide web page, instead of squeezing the boxes together
-  img.onload = () => { box.style.minWidth = img.naturalWidth + "px"; if (state.tab === "map") document.body.style.minWidth = (img.naturalWidth + 20) + "px"; drawSpots(); };
+  // laid out at the picture's own size, then scaled to fit the screen (fitMap): a phone sees the whole plan and pinches in
+  img.onload = () => { box.style.minWidth = img.naturalWidth + "px"; fitMap(); drawSpots(); };
   imageUrl(MAP.image).then(u => { img.src = u; });
   box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
   box.append(img, coords);
-  screen(note, box);
+  screen(note, el("div", { class: "mapfit" }, box));
   refreshMap();
+}
+// Scale the plan (boxes included) down to the width available, so the whole picture is on the screen at once; the
+// user pinches in to read (Russ, 2026-11-06). Transforms do not take part in layout, so the wrapper gets the scaled height.
+function fitMap() {
+  const box = $("#mapBox"); const wrap = box && box.parentElement; if (!box || !wrap) return;
+  const k = Math.min(1, wrap.clientWidth / box.offsetWidth);
+  box.style.transformOrigin = "0 0"; box.style.transform = k < 1 ? `scale(${k})` : "";
+  wrap.style.height = k < 1 ? Math.round(box.offsetHeight * k) + "px" : "";
 }
 // "RH" with a hover explanation (Russ, 2026-11-06: "it should tell me what RH means")
 function rhAbbr(outdoor) {
@@ -684,6 +690,8 @@ function drawSpots() {
       v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label + rh, rh ? rhAbbr(/OA-H$/.test(s.hum)) : null)));
   });
   // keep the small floor markers clear of the big room boxes, whatever the screen size
+  // (rects are in screen pixels; the box may be scaled down by fitMap, so shifts are converted back to layout pixels)
+  const k = box.getBoundingClientRect().width / box.offsetWidth || 1;
   const bigs = [...box.querySelectorAll(".spot:not(.sm)")].map(b => b.getBoundingClientRect());
   for (const sEl of box.querySelectorAll(".spot.sm")) {
     for (let pass = 0; pass < 3; pass++) {
@@ -691,7 +699,7 @@ function drawSpots() {
       const hit = bigs.find(b => !(r.right < b.left || r.left > b.right || r.bottom < b.top || r.top > b.bottom));
       if (!hit) break;
       const up = r.bottom - hit.top + 6, down = hit.bottom - r.top + 6;
-      sEl.style.marginTop = (parseFloat(sEl.style.marginTop || "0") + (up <= down ? -up : down)) + "px";
+      sEl.style.marginTop = (parseFloat(sEl.style.marginTop || "0") + (up <= down ? -up : down) / k) + "px";
     }
   }
   // a line from the edge of each floor box to the slab sensor it reads, with a dot at the sensor
@@ -717,7 +725,7 @@ function drawSpots() {
   }
   box.append(svg);
 }
-window.addEventListener("resize", () => { if ($("#mapBox")) drawSpots(); });
+window.addEventListener("resize", () => { if ($("#mapBox")) { fitMap(); drawSpots(); } });
 async function refreshMap() {
   clearTimeout(state.timer);
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); drawSpots(); } catch {}
