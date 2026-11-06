@@ -95,9 +95,10 @@
   .spot { position: absolute; transform: translate(-50%, -50%); background: var(--surface); border: 3px solid var(--sc, var(--s1)); border-radius: 16px; padding: 8px 18px; font-size: 28px; font-weight: 650; white-space: nowrap; box-shadow: 0 3px 12px rgba(0,0,0,.25); line-height: 1.15; text-align: center; }
   .spot small { display:block; font-size: 14px; font-weight: 400; color: var(--muted); }
   .spot.sm { font-size: 15px; padding: 2px 7px; border-radius: 8px; border-width: 2px; border-style: dashed; box-shadow: 0 1px 4px rgba(0,0,0,.2); } .spot.sm small { font-size: 9px; }
-  /* The floor plan is never shrunk below the picture's own size: on a phone it scrolls sideways and is pinched/zoomed
-     like an ordinary web page, so the temperature boxes keep their places and never pile up (Russ, 2026-11-05). */
-  .mapscroll { overflow: auto; -webkit-overflow-scrolling: touch; }
+  /* The floor plan is never shrunk below the picture's own size. On the Floor plan tab the whole page is made that
+     wide (body min-width set when the picture loads), not a scrolling box inside the page: a phone then behaves like
+     any wide web page - pinch out until the plan fills the screen, pinch in and pan to read a box - and the
+     temperature boxes keep their places and never pile up (Russ, 2026-11-05/06). */
   hr.sep { border: 0; border-top: 2px solid var(--axis); margin: 20px 0 14px; }
   .boilers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; text-align: center; }
   .boiler h3 { margin: 0 0 6px; font-size: 19px; }
@@ -118,10 +119,8 @@
   details.sec > summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; list-style: none; display: flex; align-items: center; gap: 8px; }
   details.sec > summary::before { content: "▸"; font-size: 12px; } details.sec[open] > summary::before { content: "▾"; }
   details.sec > .body { margin-top: 8px; }
-  details.grp { border-top: 1px solid var(--grid); padding: 6px 0; }
-  details.grp > summary { cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; display: flex; gap: 8px; align-items: center; padding: 2px 0; }
-  details.grp > summary::before { content: "▸"; font-size: 12px; color: var(--muted); } details.grp[open] > summary::before { content: "▾"; }
-  details.grp > table { margin-top: 6px; }
+  details.sec > summary .hint { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .spot abbr, .row abbr { text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
   .coords { position: absolute; right: 8px; bottom: 8px; font: 12px/1.2 monospace; background: rgba(0,0,0,.65); color: #fff; padding: 3px 6px; border-radius: 6px; pointer-events: none; }
   .sched-card { border-top: 5px solid var(--ac, var(--border)); border-radius: 18px; }
   .sched { display: grid; grid-template-columns: 38px 1fr minmax(150px, 0.55fr); gap: 7px 10px; align-items: center; font-size: 13px; }
@@ -137,7 +136,15 @@
   .sched .now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--critical); }
   .sched .times { grid-column: 3; font-size: 12px; color: var(--ink-2); }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
-  @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } nav.tabs button { padding: 8px 10px; } td.desc { display: none; } th.desc { display: none; } }
+  @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } nav.tabs button { padding: 8px 10px; } td.desc { display: none; } th.desc { display: none; }
+    /* Audit on a phone: every column on the screen at once in small print, pinch to zoom in to read (Russ, 2026-11-06:
+       the What column took the room and Equipment / Description needed scrolling) */
+    nav.tabs { flex-wrap: wrap; } nav.tabs button { white-space: nowrap; }
+    table.audit { font-size: 9px; } table.audit th, table.audit td { padding: 2px 3px; }
+    table.audit td.desc, table.audit th.desc { display: table-cell; }
+    table.audit .badge { white-space: normal; font-size: 9px; padding: 0 4px; line-height: 1.2; }
+    table.audit td.ctr, table.audit th.ctr { white-space: normal; }
+    table.audit pre { font-size: 9px !important; } }
 </style>
 </head>
 <body>
@@ -192,7 +199,7 @@ const MAP = {
     { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 21.6, sy: 63.0, sm: true },
     { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 23.0, sy: 53.6, sm: true },
     { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 32.8, sy: 52.1, sm: true },  // dining room (Russ, 2026-11-05)
-    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 32, y: 71, sx: 33.5, sy: 58.5, sm: true },   // in line with zone 6, to its right (Russ, 2026-11-05)
+    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 31, y: 68, sx: 33.5, sy: 58.5, sm: true },   // just left of the Fellowship Area box (Russ, 2026-11-06)
     { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 56.1, sy: 64.3, sm: true },
     { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 52.8, sy: 16.0, sm: true },
   ],
@@ -217,8 +224,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-// Tab order as Russ wants it (2026-11-05): Temperature, Map, Schedule, Details, Audit Changes.
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["sched", "Schedule"], ["details", "Details"], ["audit", "Audit"]];
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"]];   // order is Russ's (2026-11-06: Details before Schedule)
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -433,6 +439,7 @@ function renderTab() {
   state.charts.forEach(c => c.destroy()); state.charts = [];
   renderTabs();
   main.classList.toggle("wide", state.tab === "map");
+  if (state.tab !== "map") document.body.style.minWidth = "";   // the Floor plan tab widens the page to the picture
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
   else if (state.tab === "sched") renderSchedule();
@@ -540,7 +547,7 @@ function renderAhuCards() {
       el("h3", {}, a.name), el("div", { class: "where" }, a.where),
       el("div", { class: "big" }, val(p.zone), el("small", {}, "zone")),
       el("div", { class: "row" }, el("span", {}, "Discharge air"), el("span", {}, val(p.discharge) + " °F")),
-      p.humidity ? el("div", { class: "row" }, el("span", {}, "Humidity (return air)"), el("span", {}, val(p.humidity) + " % RH")) : null,
+      p.humidity ? el("div", { class: "row" }, el("span", {}, "Humidity (return air)"), el("span", {}, val(p.humidity) + " % ", rhAbbr(false))) : null,
       el("div", { class: "row" }, el("span", {}, "Setpoint"), el("span", {}, val(p.setpoint) + " °F", ...(p.setpoint ? badges(p.setpoint.last_flags) : []))),
       el("div", { class: "row" }, el("span", {}, "Supply fan"), el("span", {}, p.fan ? (fanOn ? "On" : "Off") : "–")),
       p.state ? el("div", { class: "row" }, el("span", {}, "State"), el("span", {}, val(p.state))) : null,
@@ -658,13 +665,18 @@ function renderMap() {
   const note = el("div", { class: "card hint" }, "Room temperatures (big) and in-floor slab temperatures (small, dashed, placed from the hydronic plan's S1 sensor marks) drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot.");
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
     `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
-  // never smaller than the picture itself: a phone scrolls sideways and pinches instead of squeezing the boxes together
-  img.onload = () => { box.style.minWidth = img.naturalWidth + "px"; drawSpots(); };
+  // never smaller than the picture itself, and the whole page is made that wide: a phone then pinches out until the
+  // plan fills the screen and pinches in to read, like any wide web page, instead of squeezing the boxes together
+  img.onload = () => { box.style.minWidth = img.naturalWidth + "px"; if (state.tab === "map") document.body.style.minWidth = (img.naturalWidth + 20) + "px"; drawSpots(); };
   imageUrl(MAP.image).then(u => { img.src = u; });
   box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
   box.append(img, coords);
-  screen(note, el("div", { class: "mapscroll" }, box));
+  screen(note, box);
   refreshMap();
+}
+// "RH" with a hover explanation (Russ, 2026-11-06: "it should tell me what RH means")
+function rhAbbr(outdoor) {
+  return el("abbr", { title: outdoor ? "Relative humidity of the outdoor air (one sensor, shared by the three AHUs)" : "Relative humidity of the air returning to this AHU (measured in the return duct)" }, "RH");
 }
 function drawSpots() {
   const box = $("#mapBox"); if (!box) return;
@@ -672,9 +684,9 @@ function drawSpots() {
   box.querySelectorAll("svg.spot-lines").forEach(s => s.remove());
   MAP.spots.forEach((s, i) => {
     const p = pt(s.point); const v = p ? fmtVal(p, p.last_value) : "–";
-    const h = s.hum ? pt(s.hum) : null; const rh = h && h.last_value != null ? ` · ${Number(h.last_value).toFixed(0)} % RH` : "";
+    const h = s.hum ? pt(s.hum) : null; const rh = h && h.last_value != null ? ` · ${Number(h.last_value).toFixed(0)} % ` : "";
     box.append(el("div", { class: "spot" + (s.sm ? " sm" : ""), "data-i": i, style: `left:${s.x}%;top:${s.y}%;--sc:${s.sm ? css("--s7") : css(SERIES[i % SERIES.length])}`, title: p ? `${p.display_name}, ${ago(p.last_ts)}` : s.point },
-      v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label + rh)));
+      v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label + rh, rh ? rhAbbr(/OA-H$/.test(s.hum)) : null)));
   });
   // keep the small floor markers clear of the big room boxes, whatever the screen size
   const bigs = [...box.querySelectorAll(".spot:not(.sm)")].map(b => b.getBoundingClientRect());
@@ -813,7 +825,7 @@ async function refreshAudit() {
     box.replaceChildren();
     if (!rows.length) { box.append(el("div", { class: "hint" }, "No changes recorded yet. The log started when this version of the logger was installed.")); }
     else {
-      const t = el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "When"), el("th", {}, "What"), el("th", {}, "Item"), el("th", {}, "Equipment"), el("th", { class: "desc" }, "Description"),
+      const t = el("table", { class: "audit" }, el("thead", {}, el("tr", {}, el("th", {}, "When"), el("th", {}, "What"), el("th", {}, "Item"), el("th", {}, "Equipment"), el("th", { class: "desc" }, "Description"),
         el("th", { class: "ctr" }, "From"), el("th", { class: "ctr" }, "To"), el("th", {}, "By"))));
       const b = el("tbody");
       for (const c of rows) {
@@ -840,9 +852,10 @@ async function refreshAudit() {
 
 // ------------------------------------------------------------------ Details tab (the original page)
 // Russ, 2026-11-05: no trend chart here any more (the Temperature tab has the charts); just the value tables, alerts, rules.
+// Russ, 2026-11-06: the equipment groups are sections of their own, like Alerts; no "Current values" wrapper.
 function renderDetails() {
   screen(ALLOW_CHANGES ? section("controls", "Set from here", true, el("div", { id: "controls" })) : null,
-         section("values", "Current values", true, el("div", { class: "hint" }, "Every logged point, by equipment, with its Metasys item name and description; refreshes every minute. Click a heading to open or close that group."), el("div", { id: "tiles" })),
+         el("div", { id: "tiles" }),
          section("alerts", "Alerts", true, el("div", { id: "alerts" })),
          section("rules", "Alert rules", false, el("div", { id: "rules" })));
   buildTiles(); renderExtras();
@@ -850,8 +863,9 @@ function renderDetails() {
 }
 function section(key, title, openByDefault, ...body) {
   const d = el("details", { class: "sec" }, el("summary", {}, title), el("div", { class: "body" }, ...body));
-  d.open = store.get("sec." + key, openByDefault);
-  d.addEventListener("toggle", () => store.set("sec." + key, d.open));
+  const sk = key.startsWith("grp.") ? key : "sec." + key;   // equipment groups keep the storage key they always had
+  d.open = store.get(sk, openByDefault);
+  d.addEventListener("toggle", () => store.set(sk, d.open));
   return d;
 }
 function tileRank(p) {
@@ -880,9 +894,8 @@ function buildTiles() {
     }
     const grid = el("table", { class: "vals" }, el("thead", {}, el("tr", {}, el("th", {}, "Item"), el("th", { class: "desc" }, "Description"), el("th", { class: "num" }, "Value"), el("th", {}, "Updated"), el("th", {}, ""))), tb);
     sortable(grid, "vals." + g);
-    const d = el("details", { class: "grp" }, el("summary", {}, GROUPS[g] || g || "(other)", el("span", { class: "hint" }, `${pts.length} points`)), grid);
-    d.open = store.get("grp." + g, /^FEC-[678]$/.test(String(g)));
-    d.addEventListener("toggle", () => store.set("grp." + g, d.open));
+    const d = section("grp." + g, GROUPS[g] || g || "(other)", /^FEC-[678]$/.test(String(g)), grid);
+    d.querySelector("summary").append(el("span", { class: "hint" }, `${pts.length} points`));
     box.append(d);
   }
 }
