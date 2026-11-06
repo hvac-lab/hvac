@@ -276,7 +276,7 @@ const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); r
 
 const state = { sb: null, user: null, admin: false, users: [], points: [], byId: new Map(), byName: new Map(),
                 tab: store.get("tab", "temp"), charts: [], timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null,
-                tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h"),
+                tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds2", ["zone"]), tempRange: store.get("tempRange", "24h"),   // zone only by default (Russ, 2026-11-06); key tempKinds2 so the new default applies to everyone once
                 tempSmooth: store.get("tempSmooth", true), scheds: [], imgs: {},
                 // boilerKinds is remembered under "boilerKinds2" so the new default (supply only; Russ, 2026-11-05) applies to everyone once
                 boilerSel: store.get("boilerSel", ["Boiler-1", "Boiler-2"]), boilerKinds: store.get("boilerKinds2", ["supply"]), boilerRange: store.get("boilerRange", "24h"), boilerSmooth: store.get("boilerSmooth", true) };
@@ -528,7 +528,7 @@ function renderTemperature() {
     cb.addEventListener("change", () => { state.tempAhus = AHUS.filter((x, j) => (x.key === a.key ? cb.checked : state.tempAhus.includes(x.key))).map(x => x.key); store.set("tempAhus", state.tempAhus); refreshTemperature(); });
     return el("label", { class: "chk", style: `border-left: 4px solid ${css(SERIES[i])}` }, cb, `${a.name} - ${a.where}`); });
   const kindChecks = [["zone", "Zone temp"], ["discharge", "Discharge temp"]].map(([k, label]) => { const cb = el("input", { type: "checkbox" }); cb.checked = state.tempKinds.includes(k);
-    cb.addEventListener("change", () => { state.tempKinds = ["zone", "discharge"].filter(x => x === k ? cb.checked : state.tempKinds.includes(x)); store.set("tempKinds", state.tempKinds); refreshTemperature(); });
+    cb.addEventListener("change", () => { state.tempKinds = ["zone", "discharge"].filter(x => x === k ? cb.checked : state.tempKinds.includes(x)); store.set("tempKinds2", state.tempKinds); refreshTemperature(); });
     return el("label", { class: "chk" }, cb, label); });
   const rangeBtns = el("div", { class: "group" }, ...Object.entries(RANGES).map(([k, r]) =>
     el("button", { class: k === state.tempRange ? "on" : "", onclick: () => { state.tempRange = k; store.set("tempRange", k); renderTemperature(); } }, r.label)));
@@ -550,7 +550,7 @@ function renderBoilers() {
   for (const b of BOILERS) {
     const s = pt(b.supply), r = pt(b.ret);
     const { label, detail, cls, firing } = boilerState(b);
-    box.append(el("div", { class: "boiler" }, el("h3", {}, b.name, el("span", { class: "hint", style: "font-weight:400;font-size:12px" }, b.bst === "lead" ? " · lead" : " · BST slave")),
+    box.append(el("div", { class: "boiler" }, el("h3", {}, b.name),   // no lead / slave words on the card (Russ, 2026-11-06); the Boiler room drawing keeps them
       el("div", { class: "t" }, deg(s)), el("div", { class: "lbl" }, "supply"),
       el("div", { class: "imgwrap" }, el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }),
         el("div", { class: "st " + cls }, el("b", {}, label + firing), el("small", {}, detail))),
@@ -572,11 +572,11 @@ function boilerState(b) {
   let label, detail, cls;
   if (code == null) { label = "No status"; detail = "the boiler gateway is not answering"; cls = ""; }
   else if (faultCode || code === 4) { label = faultCode ? `FAULT ${faultCode}` : "FAULT"; detail = "the boiler has shut itself down on a fault; see its display"; cls = "err"; }
-  else if (code === 3) { label = "Running"; detail = lead ? "lead boiler (BST in control)" : `called in by ${otherName} to help (BST slave)`; cls = "ok"; }
+  else if (code === 3) { label = "Running"; detail = lead ? "lead boiler" : `called in by ${otherName} to help`; cls = "ok"; }
   else if (code === 2) { label = "Manual"; detail = "run by hand from the boiler's own panel"; cls = "warn"; }
   else if (code === 1) { label = "Standby"; detail = lead ? "lead boiler, ready, not firing" : `ready, waiting for ${otherName} to call it in`; cls = "warn"; }
   else if (!plantOn) { label = "Off"; detail = "the heating plant is switched off at the engine"; cls = ""; }
-  else if (!lead) { label = "Standby"; detail = `BST slave: held off by ${otherName} until it is needed`; cls = "warn"; }
+  else if (!lead) { label = "Standby"; detail = `held off by ${otherName} until it is needed`; cls = "warn"; }
   else { label = "Off"; detail = "disabled at the unit while the plant is on"; cls = "err"; }
   return { label, detail, cls, firing, fire, code, faultCode };
 }
@@ -918,8 +918,12 @@ function boilerRoomSvg() {
   s += `<rect x="830" y="282" width="60" height="50" rx="4" fill="${surface}" stroke="${ink2}" stroke-width="2"/>` + `<rect x="842" y="272" width="36" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(860, 348, "glycol feeder tank", "middle", 9) + label(860, 358, "with its own pump", "middle", 7);
   // --- two circulating pumps in parallel, each with a shut-off, suction diffuser (B&G DD-3, with drain), VFD on the outer side,
   //     pressure gauge across the pump on the inner side, and a triple-duty valve on the discharge
-  s += pipe("M 540 300 H 660", red, flowCls) + pipe("M 540 300 V 330", red, flowCls) + pipe("M 660 300 V 330", red, flowCls);
-  s += pipe("M 540 372 V 452 H 660 V 372", red, flowCls) + pipe("M 600 452 V 505", red, flowCls) + arrow(600, 490, "d", red);
+  // Each pump branch is its own path, drawn in the direction the water goes (the dashes move from a path's start to its
+  // end) and animated only while that pump runs: the supply splits at the top header, goes down through the running
+  // pump, rejoins in the lower header and leaves downward (Russ, 2026-11-06: the dashes ran the wrong way on CP-2).
+  const cp1 = on(BR.pumps[0].s) ? " flow" : "", cp2 = on(BR.pumps[1].s) ? " flow" : "";
+  s += pipe("M 600 300 H 540 V 330", red, cp1) + pipe("M 600 300 H 660 V 330", red, cp2);
+  s += pipe("M 540 372 V 452 H 600", red, cp1) + pipe("M 660 372 V 452 H 600", red, cp2) + pipe("M 600 452 V 505", red, flowCls) + arrow(600, 490, "d", red);
   s += label(600, 318, "shut-off · suction diffuser B&G DD-3", "middle", 7);
   BR.pumps.forEach((pp, i) => {
     const x = i === 0 ? 540 : 660; const run = on(pp.s), cmd = on(pp.c), alarm = on(pp.a); const lo = pt(pp.lo); const locked = lo && lo.last_value != null && Number(lo.last_value) !== 1;
