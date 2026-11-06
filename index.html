@@ -215,19 +215,19 @@ const MAP = {
     // sheet M3.2's S1 text marks -> sheet A1.3 (room-number labels, least squares) -> this picture (linework
     // correlation, room labels land within 3 px); the earlier values were within ~1 % except zones 9 and 11 (~2 %).
     // Assumes slab zone N = manifold MAN-N. A line is drawn from each box to its sensor.
-    // sx/sy = the END of each S1 tag's leader line on M3.2 (the tag sits on a short leader that points at the sensor;
-    // zone 5's tag has no leader, so its own position is used) - Russ, 2026-11-06 evening: "exactly where it should be".
-    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 78.5, sy: 58.8, sm: true },
-    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 87.5, sy: 66.4, sm: true },
-    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 88, sx: 78.3, sy: 87.5, sm: true },
-    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.8, sy: 88.4, sm: true },
+    // sx/sy = the centre of each S1 tag circle on M3.2 (the circles sit on the walls, corridor side of the room, beside
+    // the MAN-N label). Russ, 2026-11-06 afternoon, after checking the overlay himself: "Use the S1 tag dots".
+    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 78.5, sy: 61.8, sm: true },
+    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 87.5, sy: 63.2, sm: true },
+    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 88, sx: 78.3, sy: 84.2, sm: true },
+    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.8, sy: 85.1, sm: true },
     { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 14, y: 67, sx: 7.7, sy: 60.3, sm: true },  // right of the vestibule (Russ, 2026-11-05)
-    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 20.8, sy: 65.4, sm: true },
-    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 21.9, sy: 55.9, sm: true },
-    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 31.7, sy: 47.8, sm: true },  // dining room (Russ, 2026-11-05)
-    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 31, y: 68, sx: 36.9, sy: 60.9, sm: true },   // just left of the Fellowship Area box (Russ, 2026-11-06)
-    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 55.4, sy: 66.5, sm: true },
-    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 48.3, sy: 15.0, sm: true },
+    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 20.8, sy: 62.1, sm: true },
+    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 21.9, sy: 52.7, sm: true },
+    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 31.7, sy: 51.2, sm: true },  // dining room (Russ, 2026-11-05)
+    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 31, y: 68, sx: 34.5, sy: 60.9, sm: true },   // just left of the Fellowship Area box (Russ, 2026-11-06)
+    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 55.4, sy: 63.2, sm: true },
+    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 50.7, sy: 15.0, sm: true },
   ],
 };
 
