@@ -61,7 +61,8 @@
   .tile .val small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
   .tile .meta { font-size: 11px; color: var(--muted); display:flex; gap:6px; flex-wrap: wrap; }
   .ahus { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
-  .ahu { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; border-top: 4px solid var(--ac, var(--border)); }
+  .ahu { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 14px 16px; border-top: 5px solid var(--ac, var(--border)); }
+  .card.chart.temp { border-radius: 18px; }
   .ahu h3 { margin: 0; font-size: 15px; } .ahu .where { font-size: 12px; color: var(--muted); margin-bottom: 8px; min-height: 16px; }
   .ahu .big { font-size: 34px; font-weight: 650; line-height: 1.1; } .ahu .big small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 4px; }
   .ahu .row { display:flex; justify-content: space-between; gap: 8px; font-size: 14px; padding: 3px 0; border-top: 1px solid var(--grid); }
@@ -130,7 +131,7 @@
 "use strict";
 // ------------------------------------------------------------------ building configuration
 // The engine names the air handlers by controller (FEC-6/7/8); the Metasys screens call them AHU-1/2/3.
-// AHU-1 = FEC-6 was confirmed from logged values on 2026-11-05; AHU-2/3 follow the same order (to confirm).
+// AHU-1 = FEC-6 was confirmed from logged values on 2026-11-05; AHU-2 = FEC-7 and AHU-3 = FEC-8 confirmed by Russ.
 const AHUS = [
   { key: "AHU-1", fec: "FEC-6", name: "AHU-1", where: "Fellowship Area, Main Entry" },
   { key: "AHU-2", fec: "FEC-7", name: "AHU-2", where: "Kitchen and Dining" },
@@ -174,7 +175,8 @@ const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); r
 
 const state = { sb: null, user: null, points: [], byId: new Map(), byName: new Map(), sel: store.get("sel", []), range: store.get("range", "24h"),
                 tab: store.get("tab", "temp"), table: false, charts: [], data: null, timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null,
-                tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h") };
+                tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h"),
+                tempSmooth: store.get("tempSmooth", true) };
 
 // ------------------------------------------------------------------ theme
 const applyTheme = () => { const t = store.get("theme", null); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
@@ -313,7 +315,7 @@ function renderStatus() {
   const s = state.status;
   if (!s || !s.last_seen) { setStatus("warn", "poller: no data yet"); return; }
   const min = (Date.now() - new Date(s.last_seen)) / 60000;
-  setStatus(min <= 5 ? "ok" : min <= 30 ? "warn" : "bad", `poller ${ago(s.last_seen)}${s.points_err ? `, ${s.points_err} read errors` : ""}`);
+  setStatus(min <= 5 ? "ok" : min <= 30 ? "warn" : "bad", `updated ${ago(s.last_seen)}${s.points_err ? `, ${s.points_err} read errors` : ""}`);
 }
 
 // ------------------------------------------------------------------ tabs
@@ -338,15 +340,18 @@ function renderTemperature() {
   const cards = el("div", { class: "ahus", id: "ahuCards" });
   const ahuChecks = AHUS.map((a, i) => { const cb = el("input", { type: "checkbox" }); cb.checked = state.tempAhus.includes(a.key);
     cb.addEventListener("change", () => { state.tempAhus = AHUS.filter((x, j) => (x.key === a.key ? cb.checked : state.tempAhus.includes(x.key))).map(x => x.key); store.set("tempAhus", state.tempAhus); refreshTemperature(); });
-    return el("label", { class: "chk", style: `border-left: 4px solid ${css(SERIES[i])}` }, cb, a.name); });
+    return el("label", { class: "chk", style: `border-left: 4px solid ${css(SERIES[i])}` }, cb, `${a.name} - ${a.where}`); });
   const kindChecks = [["zone", "Zone temp"], ["discharge", "Discharge temp"]].map(([k, label]) => { const cb = el("input", { type: "checkbox" }); cb.checked = state.tempKinds.includes(k);
     cb.addEventListener("change", () => { state.tempKinds = ["zone", "discharge"].filter(x => x === k ? cb.checked : state.tempKinds.includes(x)); store.set("tempKinds", state.tempKinds); refreshTemperature(); });
     return el("label", { class: "chk" }, cb, label); });
   const rangeBtns = el("div", { class: "group" }, ...Object.entries(RANGES).map(([k, r]) =>
     el("button", { class: k === state.tempRange ? "on" : "", onclick: () => { state.tempRange = k; store.set("tempRange", k); renderTemperature(); } }, r.label)));
+  const smoothCb = el("input", { type: "checkbox" }); smoothCb.checked = state.tempSmooth;
+  smoothCb.addEventListener("change", () => { state.tempSmooth = smoothCb.checked; store.set("tempSmooth", state.tempSmooth); refreshTemperature(); });
   const filters = el("div", { class: "filters" }, ...ahuChecks, el("span", { style: "width:8px" }), ...kindChecks, el("span", { style: "width:8px" }), rangeBtns,
+    el("label", { class: "chk", title: "Average each minute with the minutes around it so sensor jitter does not show" }, smoothCb, "Smooth"),
     el("span", { class: "hint" }, state.tempRange === "24h" ? "1-minute values, refreshes every minute" : state.tempRange === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
-  screen(cards, el("div", { class: "card chart" }, el("h3", {}, "°F"), filters, el("div", { id: "tempChart" })));
+  screen(cards, el("div", { class: "card chart temp" }, el("h3", {}, "°F"), filters, el("div", { id: "tempChart" })));
   renderAhuCards();
   refreshTemperature();
 }
@@ -377,14 +382,18 @@ async function refreshTemperature() {
     AHUS.forEach((a, i) => {
       if (!state.tempAhus.includes(a.key)) return;
       const p = ahuPoints(a);
-      if (state.tempKinds.includes("zone") && p.zone) series.push({ id: p.zone.id, label: `${a.name} zone`, color: css(SERIES[i]), width: 2, p: p.zone });
-      if (state.tempKinds.includes("discharge") && p.discharge) series.push({ id: p.discharge.id, label: `${a.name} discharge`, color: css(SERIES[i]), width: 1, dash: [6, 4], p: p.discharge });
+      if (state.tempKinds.includes("zone") && p.zone) series.push({ id: p.zone.id, label: `${a.name} - ${a.where} zone`, color: css(SERIES[i]), width: 2, p: p.zone });
+      if (state.tempKinds.includes("discharge") && p.discharge) series.push({ id: p.discharge.id, label: `${a.name} - ${a.where} discharge`, color: css(SERIES[i]), width: 1, dash: [6, 4], p: p.discharge });
     });
     const data = await loadSeries(series.map(s => s.id), state.tempRange);
     state.charts.forEach(c => c.destroy()); state.charts = [];
     holder.replaceChildren();
     if (!series.length) holder.append(el("div", { class: "hint" }, "Tick at least one air handler and one temperature."));
-    else { const built = buildSeries(data, series); if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 320 }); }
+    else {
+      const built = buildSeries(data, series);
+      if (state.tempSmooth) for (const s of built.series) { s.ys = smooth(s.ys, state.tempRange === "24h" ? 5 : 3); if (s.mins) { s.mins = smooth(s.mins, 3); s.maxs = smooth(s.maxs, 3); } }
+      if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 320, curved: true });
+    }
   } catch (e) {
     holder.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load data: "), String(e.message || e)));
   } finally { holder.classList.remove("dim"); }
@@ -392,6 +401,17 @@ async function refreshTemperature() {
 }
 
 // ------------------------------------------------------------------ charts (shared)
+function smooth(ys, n) {
+  // centered moving average over n points; gaps (null) stay gaps and are not bridged
+  const half = Math.floor(n / 2); const out = new Array(ys.length).fill(null);
+  for (let i = 0; i < ys.length; i++) {
+    if (ys[i] == null) continue;
+    let sum = 0, cnt = 0;
+    for (let j = Math.max(0, i - half); j <= Math.min(ys.length - 1, i + half); j++) { if (ys[j] != null) { sum += ys[j]; cnt++; } }
+    out[i] = sum / cnt;
+  }
+  return out;
+}
 function buildSeries(data, defs) {
   // defs: [{id, label, color, width, dash, p}] -> {xs, series: [{...def, ys, mins, maxs}]}
   const { rows, table } = data; const raw = table === "hvac_samples_1m";
@@ -417,7 +437,7 @@ function drawChart(holder, built, o = {}) {
     const stepped = s.p && s.p.kind !== "analog";
     data.push(s.ys);
     opts.series.push({ label: s.label, stroke: s.color, width: s.width || 2, dash: s.dash, spanGaps: false,
-      paths: stepped ? uPlot.paths.stepped({ align: 1 }) : undefined,
+      paths: stepped ? uPlot.paths.stepped({ align: 1 }) : (o.curved ? uPlot.paths.spline() : undefined),
       value: (u, v) => v == null ? "–" : fmtVal(s.p, v) + (s.p && s.p.kind === "analog" ? " " + unitLabel(s.p.units) : "") });
     if (s.mins) {
       const lo = data.length, hi = lo + 1; data.push(s.mins, s.maxs);
