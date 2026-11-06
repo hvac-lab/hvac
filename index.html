@@ -108,6 +108,8 @@
   .mapfit { overflow: hidden; }
   /* Boiler room drawing: pipes with moving dashes where water is being pumped */
   .broom svg { max-width: 1100px; margin: 0 auto; }
+  .ahusvg svg { max-width: 1100px; margin: 0 auto; }
+  .ahusvg .pipe.flow { stroke-dasharray: 10 7; animation: pipeflow 1.2s linear infinite; }
   .broom .pipe.flow { stroke-dasharray: 10 7; animation: pipeflow 1.2s linear infinite; }
   @keyframes pipeflow { to { stroke-dashoffset: -17; } }
   hr.sep { border: 0; border-top: 2px solid var(--axis); margin: 20px 0 14px; }
@@ -238,7 +240,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["boiler", "Boiler room"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only; Boiler room beside the floor plan)
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["boiler", "Boiler room"], ["ahu", "Air handlers"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only; Boiler room and Air handlers beside the floor plan)
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -492,6 +494,7 @@ function renderTab() {
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
   else if (state.tab === "boiler") renderBoilerRoom();
+  else if (state.tab === "ahu") renderAhus();
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
   else if (state.tab === "admin") renderAdmin();
@@ -964,6 +967,141 @@ function boilerRoomSvg() {
   return `<svg viewBox="0 0 1000 644" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
 }
 
+// ------------------------------------------------------------------ Air handlers tab (Russ, 2026-11-06)
+// One airflow schematic per unit, drawn after the section views on sheet M2.1 of the 2013 plan set (details 2, 3 and 4:
+// a stacked unit with the return fan on top pulling air from the rooms and pushing some of it out of the exhaust louver,
+// the rest mixed with outdoor air from the intake louver, through the filter section and coils to the supply fan below),
+// the heating-coil piping on M5.1 (detail 5: two-way valve for AHU-2; detail 7: three-way valve for AHU-1 and AHU-3)
+// and the condensing units CU-1/2/3 on M2.2 (DX cooling coils, two stages each). The motorized dampers are drawn on M2.1
+// as two-position; the engine drives them 0-100 % (OAD-O / RAD-O / EAD-O), so the blade is drawn at that angle.
+// No controls sheet: the sensor positions (MA-T in the mixing box, DA-T after the supply fan, RA-T/RA-H in the return,
+// FFILT-DP across the filter, LT-A the low-limit stat at the coils, DA-SD / RA-SD the duct smoke detectors) are inferred.
+const AHU_EXTRA = { "AHU-1": { valve: "3-way valve" }, "AHU-2": { valve: "2-way valve" }, "AHU-3": { valve: "3-way valve", dehum: "AHU-3 Folder.Dehumidification." } };
+function renderAhus() {
+  const cards = AHUS.map((a, i) => el("div", { class: "card", style: `padding:6px 6px 2px;border-top:5px solid ${css(SERIES[i])};border-radius:18px` },
+    el("div", { id: "ahu-" + a.key, class: "ahusvg" }, "Loading…")));
+  screen(el("div", { class: "card hint" }, "Each air handler as drawn on sheet M2.1 of the 2013 plan set (section views): the return fan pulls air back from the rooms and either ",
+      "sends it out of the exhaust louver or mixes it with outdoor air from the intake louver; the mix passes the filter, the hot-water heating coil (fed by the boilers), ",
+      "the DX cooling coil (its condensing unit sits outside) and the supply fan on its way back to the rooms. Dampers are drawn at the angle the engine commands; ",
+      "moving dashes show where air is being moved; red and blue coils are working. Refreshes every minute. Pinch to zoom on a phone."),
+    ...cards);
+  refreshAhus();
+}
+async function refreshAhus() {
+  clearTimeout(state.timer);
+  if (!$("#ahu-" + AHUS[0].key)) return;
+  try { await Promise.all([loadStatus(), loadActiveAlerts(), demo ? null : loadPoints()]); renderStatus(); for (const a of AHUS) { const box = $("#ahu-" + a.key); if (box) box.innerHTML = ahuSvg(a); } }
+  catch (e) { const box = $("#ahu-" + AHUS[0].key); if (box) box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
+  state.timer = setTimeout(refreshAhus, 60000);
+}
+function ahuSvg(a) {
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]));
+  const P = (n) => pt(`${a.fec}.${n}`);
+  const num = (n, d = 1, unit = "") => { const p = P(n); return p && p.last_value != null ? Number(p.last_value).toFixed(d) + unit : "–"; };
+  const val = (n) => { const p = P(n); return p ? Number(p.last_value) : null; };
+  const on = (n) => val(n) === 1;
+  const has = (n) => !!P(n);
+  const txt = (n) => { const p = P(n); return p ? fmtVal(p, p.last_value) : "–"; };
+  const red = css("--s8"), blue = css("--s1"), ink = css("--ink"), ink2 = css("--ink-2"), muted = css("--muted"), surface = css("--surface"), grid = css("--axis"),
+        good = css("--good"), bad = css("--critical"), warn = css("--warning"), ductColor = css("--grid");
+  const sfOn = on("SF-S"), rfOn = on("RF-S");
+  const label = (x, y, text, anchor = "start", size = 11, color = muted, weight = 400) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${color}" font-weight="${weight}">${esc(text)}</text>`;
+  const tag = (x, y, letters, value, side = "r", big = false) => `<circle cx="${x}" cy="${y}" r="12" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/><text x="${x}" y="${y + 3.5}" text-anchor="middle" font-size="9" font-weight="700" fill="${ink2}">${letters}</text>` +
+    `<text x="${side === "r" ? x + 17 : x - 17}" y="${y + (big ? 6 : 5)}" text-anchor="${side === "r" ? "start" : "end"}" font-size="${big ? 17 : 13}" font-weight="700" fill="${ink}">${esc(value)}</text>`;
+  // a duct: wide grey band, with a thin moving line in it while the fan that moves this air is running
+  const duct = (d, flowing) => `<path d="${d}" fill="none" stroke="${ductColor}" stroke-width="16" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${ink2}" stroke-width="2" stroke-linejoin="round" class="pipe flow"/>` : "");
+  const arrow = (x, y, dir, color = ink2) => { const s = 6; const pts = dir === "r" ? `${x - s},${y - s} ${x + s},${y} ${x - s},${y + s}` : dir === "l" ? `${x + s},${y - s} ${x - s},${y} ${x + s},${y + s}` : dir === "d" ? `${x - s},${y - s} ${x},${y + s} ${x + s},${y - s}` : `${x - s},${y + s} ${x},${y - s} ${x + s},${y + s}`; return `<polygon points="${pts}" fill="${color}"/>`; };
+  // damper: a frame in the duct with one blade turned to the commanded opening (0 % = across the duct, 100 % = along it)
+  const damper = (x, y, pct, vertical, name, note) => { const p = pct == null ? 0 : Math.max(0, Math.min(100, pct)); const ang = (vertical ? 0 : 90) - p * 0.9;
+    return `<g transform="translate(${x},${y})"><rect x="-10" y="-10" width="20" height="20" fill="${surface}" stroke="${ink2}" stroke-width="1.4"/><g transform="rotate(${ang})"><line x1="-8" y1="0" x2="8" y2="0" stroke="${p > 0 ? ink : ink2}" stroke-width="2.4"/></g><circle r="1.8" fill="${ink2}"/></g>` +
+      (name ? label(x, vertical ? y + 26 : y - 15, `${name} ${pct == null ? "–" : pct.toFixed(0) + " %"}`, "middle", 8.5, p > 0 ? ink : muted, 600) : "") + (note ? label(x, vertical ? y + 35 : y - 25, note, "middle", 7) : ""); };
+  // coil: hatched box across the duct, tinted while it works
+  const coil = (x, y, color, working, hatch = 5) => { let h = ""; for (let i = -16; i <= 16; i += hatch) h += `<line x1="${x - 11}" y1="${y + i}" x2="${x + 11}" y2="${y + i + 6}" stroke="${working ? color : ink2}" stroke-width="1" opacity=".8"/>`;
+    return `<rect x="${x - 11}" y="${y - 22}" width="22" height="44" fill="${working ? color : surface}" fill-opacity="${working ? .25 : 1}" stroke="${working ? color : ink2}" stroke-width="${working ? 2.4 : 1.4}"/>` + h; };
+  const fan = (x, y, run, alarm, big = 17) => { const stroke = alarm ? bad : run ? good : grid;
+    return `<circle cx="${x}" cy="${y}" r="${big}" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><path d="M ${x} ${y} l 10 -12 a ${big} ${big} 0 0 1 2 20 z" fill="${stroke}" opacity=".85"/><path d="M ${x} ${y} l -10 12 a ${big} ${big} 0 0 1 -2 -20 z" fill="${stroke}" opacity=".5"/>`; };
+  const sd = (x, y, alarm) => `<rect x="${x - 7}" y="${y - 7}" width="14" height="14" rx="3" fill="${alarm ? bad : surface}" stroke="${alarm ? bad : ink2}" stroke-width="1.3"/>` + label(x, y + 3, "SD", "middle", 7, alarm ? "#fff" : ink2, 700);
+  const louver = (x, y, text) => { let s = `<rect x="${x - 10}" y="${y - 22}" width="20" height="44" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>`; for (let i = -16; i <= 16; i += 8) s += `<line x1="${x - 8}" y1="${y + i - 3}" x2="${x + 8}" y2="${y + i + 3}" stroke="${ink2}" stroke-width="1.4"/>`; return s + label(x, y + 34, text, "middle", 8) + label(x, y + 43, "on the outside wall", "middle", 7); };
+  const i = AHUS.indexOf(a); const extra = AHU_EXTRA[a.key] || {};
+  const htg = val("HTG-O") || 0, clg1 = on("CLG1-C"), clg2 = on("CLG2-C");
+  const sfAlarm = on("SF-A"), rfAlarm = on("RF-A"), lt = on("LT-A"), daSd = on("DA-SD"), raSd = on("RA-SD");
+  const sfCmd = val("SF-C"), rfCmd = val("RF-C");
+  const re = new RegExp(`\\b${a.fec}\\.`); const alert = state.alerts.find(x => !x.cleared_at && re.test(x.message || ""));
+  const SY = 290, RY = 135, EY = 70;   // supply duct, return duct and exhaust run centre lines (the title and state line sit above the exhaust run)
+  let s = "";
+  // --- title and the unit's state line
+  s += label(20, 24, `${a.name}`, "start", 17, ink, 700) + label(20 + a.name.length * 11 + 6, 24, a.where, "start", 12, ink2);
+  const occ = txt("EFF-OCC"), st = txt("AHU-STATE"), unit = txt("UNITEN-MODE"), wc = txt("WC-C"), econ = has("ECON-AVAILABLE") ? (on("ECON-AVAILABLE") ? "economizer available" : "economizer off (outdoor air too cold or too moist)") : "";
+  const stateColor = /unreliable/i.test(st) ? bad : ink2;
+  s += label(20, 42, `${st}${occ !== "–" ? " · " + occ.toLowerCase() : ""}${unit === "Shutdown" ? " · UNIT SHUT DOWN" : ""}${wc && wc !== "Normal" && wc !== "–" ? " · " + wc.toLowerCase() : ""}`, "start", 11, unit === "Shutdown" ? bad : stateColor, 600);
+  if (econ) s += label(20, 56, econ, "start", 9);
+  if (alert) s += `<rect x="440" y="10" width="545" height="20" rx="10" fill="${bad}"/>` + label(712, 24, "ALERT: " + (alert.message || "").slice(0, 85), "middle", 9.5, "#fff", 700);
+  // --- the rooms (right): zone temperature, setpoint, humidity, building pressure
+  s += `<rect x="868" y="70" width="118" height="245" rx="10" fill="${surface}" stroke="${css(SERIES[i])}" stroke-width="2.5"/>`;
+  s += label(927, 90, "THE ROOMS", "middle", 10, ink2, 700) + label(927, 102, a.where, "middle", 7.5);
+  s += label(927, 150, num("ZN-T", 1), "middle", 26, ink, 700) + label(927, 164, "°F zone (ZN-T)", "middle", 9);
+  s += label(927, 186, `setpoint ${num("ZNT-SP", 1, " °F")}`, "middle", 10, ink2, 600) + (has("EFFHTG-SP") ? label(927, 198, `heat below ${num("EFFHTG-SP", 0)} · cool above ${num("EFFCLG-SP", 0)}`, "middle", 7.5) : "");
+  s += label(927, 220, `${num("RA-H", 0, " %")} RH`, "middle", 12, ink2, 600) + label(927, 231, "humidity (return air)", "middle", 7.5);
+  const bp = val("BLDG-P"), bpsp = val("BLDGP-SP");
+  s += label(927, 258, bp == null ? "–" : `${bp >= 0 ? "+" : ""}${bp.toFixed(3)} in. w.c.`, "middle", 11, bp != null && bp < 0 ? bad : ink2, 600) + label(927, 269, `building pressure${bpsp != null ? ` (setpoint ${bpsp.toFixed(2)})` : ""}`, "middle", 7.5);
+  if (bp != null && bp < 0) s += label(927, 281, "below outdoors: air is being sucked in", "middle", 7, bad);
+  if (extra.dehum) { const rh = pt(extra.dehum + "RH Setpoint"), ds = pt(extra.dehum + "Dehumid Schedule");
+    if (rh) s += label(927, 300, `dehumidify ${ds && Number(ds.last_value) === 1 ? "ON" : "off"} · RH setpoint ${Number(rh.last_value).toFixed(0)} %`, "middle", 7.5, ds && Number(ds.last_value) === 1 ? blue : muted, 600); }
+  // --- return side (top): rooms -> RA sensors -> smoke detector -> return fan -> tee: exhaust damper up to the louver, return damper down to the mixing box
+  s += duct(`M 868 ${RY} H 300`, rfOn) + duct(`M 420 ${RY} V ${EY} H 60`, rfOn && (val("EAD-O") || 0) > 0);
+  s += arrow(840, RY, "l") + arrow(690, RY, "l") + arrow(420, EY + 25, "u") + arrow(150, EY, "l");
+  s += label(640, RY - 24, "RETURN AIR from the rooms", "middle", 9, ink2, 600);
+  s += tag(785, RY, "T", `${num("RA-T", 1, " °F")}`, "r") + label(785, RY + 22, "return air (RA-T)", "middle", 8);
+  s += sd(700, RY, raSd) + label(700, RY + 19, raSd ? "SMOKE ALARM" : "smoke detector", "middle", 7, raSd ? bad : muted, raSd ? 700 : 400);
+  s += fan(600, RY, rfOn, rfAlarm, 17);
+  s += `<rect x="570" y="${RY - 48}" width="30" height="14" rx="3" fill="${rfAlarm ? bad : surface}" stroke="${rfAlarm ? bad : ink2}" stroke-width="1.3"/>` + label(585, RY - 38, "VFD", "middle", 8, rfAlarm ? "#fff" : ink2, 700);
+  const rfTxt = !has("RF-S") ? "–" : rfOn ? `ON ${num("RF-O", 0, " %")}` : "off";
+  s += label(600, RY + 32, "return fan", "middle", 9, ink2, 700) + label(600, RY + 44, rfTxt, "middle", 10, rfOn ? good : muted, 700);
+  if (rfAlarm) s += label(600, RY + 56, "VFD ALARM", "middle", 9, bad, 700); else if (rfCmd != null && has("RF-S") && (rfCmd === 1) !== rfOn) s += label(600, RY + 56, rfCmd ? "commanded on, not running" : "running, not commanded", "middle", 8, bad, 700);
+  s += damper(420, EY + 33, val("EAD-O"), true, "", "") + label(445, EY + 31, `exhaust damper ${num("EAD-O", 0, " %")}`, "start", 8.5, (val("EAD-O") || 0) > 0 ? ink : muted, 600);
+  s += louver(60, EY, "exhaust louver") + label(250, EY + 22, "EXHAUST AIR out of the building", "middle", 9, ink2, 600);
+  s += damper(360, RY, val("RAD-O"), false, "return damper", "");
+  // --- mixing box joins the two rows
+  s += `<rect x="283" y="${RY - 14}" width="34" height="${SY - RY + 28}" rx="4" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/>`;
+  s += `<path d="M 300 ${RY + 14} V ${SY - 14}" stroke="${ductColor}" stroke-width="16"/>` + (rfOn && (val("RAD-O") || 0) > 0 ? `<path d="M 300 ${RY + 14} V ${SY - 14}" stroke="${ink2}" stroke-width="2" class="pipe flow"/>` : "");
+  s += label(300, 206, "MIXING", "middle", 7.5, ink2, 700) + label(300, 215, "BOX", "middle", 7.5, ink2, 700);
+  s += tag(300, 237, "T", num("MA-T", 1, " °F"), "r") + label(318, 252, "mixed air (MA-T)", "start", 8);
+  // --- supply side (bottom): intake louver -> outdoor damper -> mixing box -> filter -> heating coil -> cooling coil -> supply fan -> DA sensor -> rooms
+  s += duct(`M 60 ${SY} H 300`, sfOn && (val("OAD-O") || 0) > 0) + duct(`M 300 ${SY} H 868`, sfOn);
+  s += arrow(190, SY, "r") + arrow(620, SY, "r") + arrow(845, SY, "r");
+  s += louver(60, SY, "intake louver");
+  s += tag(60, SY - 58, "T", `${num("OA-T", 1, " °F")}`, "r") + label(77, SY - 41, `outdoor air (OA-T) · ${num("OA-H", 0, " %")} RH`, "start", 8);
+  s += damper(150, SY, val("OAD-O"), false, "outdoor damper", has("OAD-MINPOS") ? `minimum ${num("OAD-MINPOS", 0, " %")}` : "");
+  s += label(225, SY - 24, "OUTDOOR AIR", "middle", 9, ink2, 600);
+  // filter with its pressure drop
+  const fdp = val("FFILT-DP");
+  s += `<rect x="372" y="${SY - 22}" width="12" height="44" fill="${surface}" stroke="${ink2}" stroke-width="1.4"/>`; for (let y = SY - 18; y < SY + 22; y += 6) s += `<path d="M 372 ${y} l 6 -3 l 6 3" fill="none" stroke="${ink2}" stroke-width="1"/>`;
+  s += label(378, SY + 36, "filter", "middle", 9, ink2, 700) + label(378, SY + 47, fdp == null ? "–" : `ΔP ${fdp.toFixed(3)} in.`, "middle", 8.5, fdp != null && fdp > 0.5 ? bad : muted, 600) + (fdp != null && fdp > 0.5 ? label(378, SY + 56, "dirty, change it", "middle", 7, bad, 700) : "");
+  // heating coil (hot water from the boilers) with its control valve
+  s += coil(443, SY, red, htg > 0) + label(443, SY + 36, "heating coil", "middle", 9, htg > 0 ? red : ink2, 700) + label(443, SY + 47, has("HTG-O") ? `valve ${htg.toFixed(0)} % open` : "–", "middle", 8.5, htg > 0 ? red : muted, 600);
+  s += label(443, SY + 56, `${extra.valve || "valve"} · water from the boilers`, "middle", 7);
+  if (has("HTG-EN") && !on("HTG-EN")) s += label(443, SY - 30, "heating disabled", "middle", 7.5, warn, 700);
+  // low-limit (freeze) stat at the coils
+  s += `<rect x="${492}" y="${SY - 34}" width="22" height="12" rx="3" fill="${lt ? bad : surface}" stroke="${lt ? bad : ink2}" stroke-width="1.2"/>` + label(503, SY - 25, "LT", "middle", 7, lt ? "#fff" : ink2, 700) + label(503, SY - 38, lt ? "LOW TEMP ALARM" : "low-limit stat", "middle", 7, lt ? bad : muted, lt ? 700 : 400);
+  // DX cooling coil, two stages, condensing unit outside
+  const clg = clg1 || clg2;
+  s += coil(553, SY, blue, clg) + label(553, SY + 36, "cooling coil", "middle", 9, clg ? blue : ink2, 700) + label(553, SY + 47, !has("CLG1-C") ? "–" : clg ? `stage ${clg2 ? "2" : "1"} ON` : "off", "middle", 8.5, clg ? blue : muted, 600);
+  s += label(553, SY + 56, "DX · condensing unit outside", "middle", 7);
+  // supply fan
+  s += fan(640, SY, sfOn, sfAlarm, 19);
+  s += `<rect x="610" y="${SY - 54}" width="30" height="14" rx="3" fill="${sfAlarm ? bad : surface}" stroke="${sfAlarm ? bad : ink2}" stroke-width="1.3"/>` + label(625, SY - 44, "VFD", "middle", 8, sfAlarm ? "#fff" : ink2, 700);
+  const sfTxt = !has("SF-S") ? "–" : sfOn ? `ON ${num("SF-O", 0, " %")}` : "off";
+  s += label(640, SY + 36, "supply fan", "middle", 9, ink2, 700) + label(640, SY + 48, sfTxt, "middle", 10, sfOn ? good : muted, 700);
+  if (sfAlarm) s += label(640, SY + 60, "VFD ALARM", "middle", 9, bad, 700); else if (sfCmd != null && has("SF-S") && (sfCmd === 1) !== sfOn) s += label(640, SY + 60, sfCmd ? "commanded on, not running" : "running, not commanded", "middle", 8, bad, 700);
+  // discharge sensors
+  s += tag(720, SY, "T", num("DA-T", 1, " °F"), "r", true) + label(720, SY + 24, "discharge air (DA-T)", "middle", 8);
+  s += sd(820, SY, daSd) + label(820, SY + 19, daSd ? "SMOKE ALARM" : "smoke detector", "middle", 7, daSd ? bad : muted, daSd ? 700 : 400);
+  s += label(790, SY - 24, "SUPPLY AIR to the rooms", "middle", 9, ink2, 600);
+  // --- source
+  s += label(500, 372, `after sheet M2.1 section view ${i + 2} (${a.name}), M5.1 detail ${a.key === "AHU-2" ? 5 : 7} and M2.2 (WSN, 2013); sensor positions inferred, live values from the logger`, "middle", 8);
+  return `<svg viewBox="0 0 1000 380" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
+}
+
 // ------------------------------------------------------------------ Schedule tab (read from the engine's Schedule objects)
 function schedTitle(s) { const a = AHUS.find(x => s.name.startsWith(x.key + " ")); return a ? s.name.replace(a.key, `${a.name} - ${a.where}`) : s.name; }
 function schedColor(s, i) { const a = AHUS.findIndex(x => s.name.startsWith(x.key + " ")); return css(SERIES[a >= 0 ? a : 3 + (i % 5)]); }
@@ -1366,6 +1504,18 @@ function demoPoints() {
   out.push(mk(id++, "FEC-6.OA-T", "FEC-6", "analog", "degrees-fahrenheit", 30.5), mk(id++, "FEC-9.FCU1-ZN-T", "FEC-9", "analog", "degrees-fahrenheit", 70.0), mk(id++, "FEC-10.ZN-T", "FEC-10", "analog", "degrees-fahrenheit", 69.0));
   out.push(mk(id++, "FEC-6.OA-H", "FEC-6", "analog", "percent-relative-humidity", 96.0));
   for (const [fec, h] of [["FEC-6", 39.4], ["FEC-7", 44.4], ["FEC-8", 36.9]]) out.push(mk(id++, `${fec}.RA-H`, fec, "analog", "percent-relative-humidity", h));
+  // air-handler drawing: dampers, coils, return fan, filter and building pressure (AHU-2 heating with the fans on, AHU-3 cooling stage 1)
+  ["FEC-6", "FEC-7", "FEC-8"].forEach((fec, i) => {
+    out.push(mk(id++, `${fec}.MA-T`, fec, "analog", "degrees-fahrenheit", 64.2 + i), mk(id++, `${fec}.RA-T`, fec, "analog", "degrees-fahrenheit", 67.5 + i));
+    out.push(mk(id++, `${fec}.OAD-O`, fec, "analog", "percent", i === 1 ? 25 : 0), mk(id++, `${fec}.RAD-O`, fec, "analog", "percent", i === 1 ? 75 : 100), mk(id++, `${fec}.EAD-O`, fec, "analog", "percent", i === 1 ? 25 : 0));
+    out.push(mk(id++, `${fec}.OAD-MINPOS`, fec, "analog", "percent", 3), mk(id++, `${fec}.HTG-O`, fec, "analog", "percent", i === 1 ? 40 : 0));
+    out.push(mk(id++, `${fec}.CLG1-C`, fec, "binary", null, i === 2 ? 1 : 0, 0, ["Off", "On"]), mk(id++, `${fec}.CLG2-C`, fec, "binary", null, 0, 0, ["Off", "On"]));
+    out.push(mk(id++, `${fec}.RF-S`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]), mk(id++, `${fec}.RF-C`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]), mk(id++, `${fec}.RF-A`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]), mk(id++, `${fec}.RF-O`, fec, "analog", "percent", i === 1 ? 70 : 0));
+    out.push(mk(id++, `${fec}.FFILT-DP`, fec, "analog", "inches-of-water", 0.012 + i * 0.01), mk(id++, `${fec}.BLDG-P`, fec, "analog", "inches-of-water", 0.018), mk(id++, `${fec}.BLDGP-SP`, fec, "analog", "inches-of-water", 0.05));
+    out.push(mk(id++, `${fec}.EFF-OCC`, fec, "multistate", null, i === 1 ? 1 : 2, 0, ["Occupied", "UnOccupied", "Bypass", "Standby"]), mk(id++, `${fec}.ECON-AVAILABLE`, fec, "binary", null, 0, 0, ["False", "True"]));
+    out.push(mk(id++, `${fec}.LT-A`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]), mk(id++, `${fec}.DA-SD`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]), mk(id++, `${fec}.RA-SD`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]));
+    out.push(mk(id++, `${fec}.WC-C`, fec, "multistate", null, 1, 0, ["Normal", "Warmup", "Cooldown", "Coast"]), mk(id++, `${fec}.UNITEN-MODE`, fec, "multistate", null, 2, 0, ["Shutdown", "Enable"]));
+  });
   return out;
 }
 function demoExtras() {
