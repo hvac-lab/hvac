@@ -174,7 +174,7 @@ const MAP = {
   spots: [
     // hum = a humidity point shown under the temperature (the AHUs measure it in their return air duct)
     { label: "Kitchen and Dining", point: "FEC-7.ZN-T", hum: "FEC-7.RA-H", x: 43, y: 38 },
-    { label: "Fellowship Area", point: "FEC-6.ZN-T", hum: "FEC-6.RA-H", x: 41, y: 68 },
+    { label: "Fellowship Area", point: "FEC-6.ZN-T", hum: "FEC-6.RA-H", x: 43, y: 68 },
     { label: "Worship", point: "FEC-8.ZN-T", hum: "FEC-8.RA-H", x: 79, y: 72 },
     { label: "Outdoor", point: "FEC-6.OA-T", hum: "FEC-6.OA-H", x: 69, y: 27 },   // over the patio (Russ, 2026-11-05)
     // Other sensors the plan set shows (HVAC plan M2.2 / hydronic plan M3.2): FCU-1 in the Sound Room (FEC-9),
@@ -186,13 +186,13 @@ const MAP = {
     // Assumes slab zone N = manifold MAN-N. A line is drawn from each box to its sensor.
     { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 79.1, sy: 63.0, sm: true },
     { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 88.1, sy: 64.4, sm: true },
-    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 91, sx: 78.3, sy: 85.4, sm: true },
+    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 88, sx: 78.3, sy: 85.4, sm: true },
     { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.9, sy: 86.0, sm: true },
     { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 14, y: 67, sx: 8.5, sy: 61.1, sm: true },  // right of the vestibule (Russ, 2026-11-05)
     { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 21.6, sy: 63.0, sm: true },
     { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 23.0, sy: 53.6, sm: true },
     { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 32.8, sy: 52.1, sm: true },  // dining room (Russ, 2026-11-05)
-    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 38, y: 77, sx: 33.5, sy: 58.5, sm: true },
+    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 32, y: 71, sx: 33.5, sy: 58.5, sm: true },   // in line with zone 6, to its right (Russ, 2026-11-05)
     { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 56.1, sy: 64.3, sm: true },
     { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 52.8, sy: 16.0, sm: true },
   ],
@@ -231,6 +231,7 @@ const BOILERS = [
   { name: "Boiler-2", supply: "Boiler-1&2.AV-403", ret: "Local Application.HWR-T", retNote: "loop return, boiler 2 has no return sensor", fire: "Boiler-1&2.AV-408", status: "Boiler-1&2.AV-401", fault: "Boiler-1&2.AV-402" },
 ];
 const BOILER_STATUS = { 0: "Off (disabled)", 1: "Standby", 2: "Manual", 3: "Running", 4: "Fault" };
+const BOILER_COLORS = ["--s6", "--s8"];   // chart colours: Boiler-1 green, Boiler-2 red (Russ, 2026-11-05)
 // Russ, 2026-11-05: no changes from the page for now (hides "Set from here" and the rule editor). Set true to bring them back.
 const ALLOW_CHANGES = false;
 // Details tab: names for the engine's controller groups, in display order
@@ -492,7 +493,7 @@ function boilerFilters() {
   const toggle = (key, list, v, on) => { state[key] = list.filter(x => x === v ? on : state[key].includes(x)); store.set(key === "boilerKinds" ? "boilerKinds2" : key, state[key]); refreshBoilerChart(); };
   const names = BOILERS.map(b => b.name);
   return el("div", { class: "filters", id: "boilerFilters" },
-    ...BOILERS.map((b, i) => chk(b.name, state.boilerSel.includes(b.name), on => toggle("boilerSel", names, b.name, on), css(SERIES[4 + i]))),
+    ...BOILERS.map((b, i) => chk(b.name, state.boilerSel.includes(b.name), on => toggle("boilerSel", names, b.name, on), css(BOILER_COLORS[i]))),
     el("span", { style: "width:8px" }),
     chk("Supply", state.boilerKinds.includes("supply"), on => toggle("boilerKinds", ["supply", "return"], "supply", on)),
     chk("Return", state.boilerKinds.includes("return"), on => toggle("boilerKinds", ["supply", "return"], "return", on)),
@@ -507,8 +508,8 @@ function boilerSeriesDefs() {
     if (!state.boilerSel.includes(b.name)) return;
     const sp = pt(b.supply), rp = pt(b.ret);
     const asF = (p) => ({ ...p, units: "degrees-fahrenheit", kind: "analog" });
-    if (state.boilerKinds.includes("supply") && sp) defs.push({ id: sp.id, label: `${b.name} supply`, color: css(SERIES[4 + i]), width: 2, p: asF(sp) });
-    if (state.boilerKinds.includes("return") && rp) defs.push({ id: rp.id, label: `${b.name} return`, color: css(SERIES[4 + i]), width: 1, dash: [6, 4], p: asF(rp) });
+    if (state.boilerKinds.includes("supply") && sp) defs.push({ id: sp.id, label: `${b.name} supply`, color: css(BOILER_COLORS[i]), width: 2, p: asF(sp) });
+    if (state.boilerKinds.includes("return") && rp) defs.push({ id: rp.id, label: `${b.name} return`, color: css(BOILER_COLORS[i]), width: 1, dash: [6, 4], p: asF(rp) });
   });
   return defs;
 }
@@ -812,7 +813,7 @@ async function refreshAudit() {
     box.replaceChildren();
     if (!rows.length) { box.append(el("div", { class: "hint" }, "No changes recorded yet. The log started when this version of the logger was installed.")); }
     else {
-      const t = el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "When"), el("th", {}, "What"), el("th", {}, "Equipment"), el("th", {}, "Item"), el("th", { class: "desc" }, "Description"),
+      const t = el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "When"), el("th", {}, "What"), el("th", {}, "Item"), el("th", {}, "Equipment"), el("th", { class: "desc" }, "Description"),
         el("th", { class: "ctr" }, "From"), el("th", { class: "ctr" }, "To"), el("th", {}, "By"))));
       const b = el("tbody");
       for (const c of rows) {
@@ -827,7 +828,7 @@ async function refreshAudit() {
         const cell = (v) => sched ? el("pre", { style: "margin:0;font:12px/1.3 monospace;white-space:pre-wrap;text-align:left" }, v || "") : (v == null ? "–" : v + unit);
         const num = (v) => sched || v == null || isNaN(Number(v)) ? null : String(Number(v));
         b.append(el("tr", {}, el("td", { "data-sort": c.ts }, when(c.ts)), el("td", {}, el("span", { class: "badge " + (c.kind === "override" ? "ovr" : sched ? "" : "ok") }, what)),
-          el("td", {}, where), el("td", {}, c.point_name), el("td", { class: "desc" }, desc),
+          el("td", {}, c.point_name), el("td", {}, where), el("td", { class: "desc" }, desc),
           el("td", { class: "ctr", "data-sort": num(c.old_value) }, cell(c.old_value)), el("td", { class: "ctr", "data-sort": num(c.new_value) }, cell(c.new_value)),
           el("td", {}, by)));
       }
