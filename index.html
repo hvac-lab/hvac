@@ -194,6 +194,10 @@ const AHUS = [
 // width/height (the Map tab shows the pointer's x/y to help place them). Floor plan from Russ, 2026-11-05.
 const MAP = {
   bucket: "web", image: "map.png",
+  // The spots are laid out on a 1219 px wide picture (the first floor plan's size); a sharper picture of the same
+  // framing can be uploaded (2000 px since 2026-11-06) and is still drawn at this layout width, so the spot sizes and
+  // percent positions do not change with the picture's resolution.
+  width: 1219,
   spots: [
     // hum = a humidity point shown under the temperature (the AHUs measure it in their return air duct)
     { label: "Kitchen and Dining", point: "FEC-7.ZN-T", hum: "FEC-7.RA-H", x: 43, y: 38 },
@@ -752,7 +756,7 @@ function renderMap() {
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
     `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
   // laid out at the picture's own size, then scaled to fit the screen (fitMap): a phone sees the whole plan and pinches in
-  img.onload = () => { box.style.minWidth = img.naturalWidth + "px"; fitMap(); drawSpots(); };
+  img.onload = () => { box.style.minWidth = (MAP.width || img.naturalWidth) + "px"; fitMap(); drawSpots(); };
   imageUrl(MAP.image).then(u => { img.src = u; });
   box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
   box.append(img, coords);
