@@ -113,6 +113,15 @@
   .boiler h3 { margin: 0 0 6px; font-size: 15px; }
   .boiler .t { font-size: 30px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; } .boiler .lbl { font-size: 12px; color: var(--muted); }
   .boiler img { height: 200px; width: auto; margin: 6px auto; display: block; }
+  .boiler .imgwrap { position: relative; display: inline-block; }
+  .boiler .st { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap; font-size: 15px; font-weight: 700; padding: 6px 16px; border-radius: 999px; color: #fff; background: #5a5955; letter-spacing: .02em; box-shadow: 0 2px 10px rgba(0,0,0,.45); border: 2px solid #fff; }
+  .boiler .st.ok { background: #0b7a0b; } .boiler .st.err { background: #b00020; } .boiler .st.warn { background: #b36b00; }
+  main.wide { max-width: none; padding: 10px; }
+  .map.full { display: block; width: 100%; } .map.full img { width: 100%; max-width: 100%; max-height: none; height: auto; }
+  .spot-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  table.vals tr { cursor: pointer; } table.vals tbody tr:hover td { background: var(--hover); }
+  table.vals tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--sc, var(--ink)); font-weight: 650; }
+  table.vals td.num { font-weight: 600; }
   summary::-webkit-details-marker { display: none; }
   details.sec { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
   details.sec > summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; list-style: none; display: flex; align-items: center; gap: 8px; }
@@ -121,14 +130,18 @@
   details.grp { border-top: 1px solid var(--grid); padding: 6px 0; }
   details.grp > summary { cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; display: flex; gap: 8px; align-items: center; padding: 2px 0; }
   details.grp > summary::before { content: "▸"; font-size: 12px; color: var(--muted); } details.grp[open] > summary::before { content: "▾"; }
-  details.grp > .tiles { margin-top: 6px; }
+  details.grp > .tiles, details.grp > table { margin-top: 6px; }
   .coords { position: absolute; right: 8px; bottom: 8px; font: 12px/1.2 monospace; background: rgba(0,0,0,.65); color: #fff; padding: 3px 6px; border-radius: 6px; pointer-events: none; }
   .sched-card { border-top: 5px solid var(--ac, var(--border)); border-radius: 18px; }
   .sched { display: grid; grid-template-columns: 38px 1fr minmax(150px, 0.55fr); gap: 7px 10px; align-items: center; font-size: 13px; }
   .sched .ticks { grid-column: 2; position: relative; height: 14px; font-size: 10px; color: var(--muted); }
   .sched .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-  .sched .day { grid-column: 1; color: var(--ink-2); font-weight: 600; } .sched .day.today { color: var(--ink); text-decoration: underline; }
+  .sched .day { grid-column: 1; color: var(--ink-2); font-weight: 600; }
+  /* today: purple day label, purple frame around its bar and purple times (Russ, 2026-11-05) */
+  .sched .day.today { color: #fff; background: var(--s7); border-radius: 6px; text-align: center; padding: 1px 0; }
   .sched .bar { grid-column: 2; position: relative; height: 22px; background: var(--grid); border-radius: 6px; }
+  .sched .bar.today { outline: 3px solid var(--s7); outline-offset: 2px; }
+  .sched .times.today { color: var(--s7); font-weight: 650; }
   .sched .seg { position: absolute; top: 0; bottom: 0; border-radius: 6px; opacity: .9; }
   .sched .now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--critical); }
   .sched .times { grid-column: 3; font-size: 12px; color: var(--ink-2); }
@@ -169,21 +182,22 @@ const MAP = {
   bucket: "web", image: "map.png",
   spots: [
     { label: "Kitchen and Dining", point: "FEC-7.ZN-T", x: 43, y: 38 },
-    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 49, y: 68 },
+    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 46, y: 68 },
     { label: "Worship", point: "FEC-8.ZN-T", x: 79, y: 72 },
-    // In-floor slab sensors (S1 markers on hydronic plan M3.2, one beside each manifold MAN-1..MAN-11; positions
-    // mapped onto this picture through shared room labels, 2026-11-05). Assumes slab zone N = manifold MAN-N.
-    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 79.1, y: 63.0, sm: true },
-    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88.1, y: 64.4, sm: true },
-    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 78.3, y: 85.4, sm: true },
-    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 23.9, y: 86.0, sm: true },
-    { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 8.5, y: 61.1, sm: true },
-    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 21.6, y: 63.0, sm: true },
-    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 23.0, y: 53.6, sm: true },
-    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 32.8, y: 52.1, sm: true },
-    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 33.5, y: 58.5, sm: true },
-    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 59.5, y: 57.5, sm: true },
-    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 52.8, y: 16.0, sm: true },
+    // In-floor slab zones. x/y = where the box sits (the floor area the zone heats, judged from the tubing on hydronic
+    // plan M3.2); sx/sy = the S1 slab sensor beside manifold MAN-N (from the plan, mapped through shared room labels).
+    // Assumes slab zone N = manifold MAN-N. A line is drawn from each box to its sensor.
+    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 79.1, sy: 63.0, sm: true },
+    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 88.1, sy: 64.4, sm: true },
+    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 91, sx: 78.3, sy: 85.4, sm: true },
+    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.9, sy: 86.0, sm: true },
+    { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 7, y: 70, sx: 8.5, sy: 61.1, sm: true },
+    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 21.6, sy: 63.0, sm: true },
+    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 23.0, sy: 53.6, sm: true },
+    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 42, y: 57, sx: 32.8, sy: 52.1, sm: true },
+    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 38, y: 77, sx: 33.5, sy: 58.5, sm: true },
+    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 56.1, sy: 64.3, sm: true },
+    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 52.8, sy: 16.0, sm: true },
   ],
 };
 
@@ -208,7 +222,7 @@ const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readEr
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
 // Tab order as Russ wants it (2026-11-05): Temperature, Map, Schedule, Details, Audit Changes.
-const TABS = [["temp", "Temperature"], ["map", "Map"], ["sched", "Schedule"], ["details", "Details"], ["audit", "Audit Changes"]];
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["sched", "Schedule"], ["details", "Details"], ["audit", "Audit Changes"]];
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -236,7 +250,8 @@ const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); r
 const state = { sb: null, user: null, points: [], byId: new Map(), byName: new Map(), sel: store.get("sel", []), range: store.get("range", "24h"),
                 tab: store.get("tab", "temp"), table: false, charts: [], data: null, timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null,
                 tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h"),
-                tempSmooth: store.get("tempSmooth", true), scheds: [], imgs: {} };
+                tempSmooth: store.get("tempSmooth", true), scheds: [], imgs: {},
+                boilerSel: store.get("boilerSel", ["Boiler-1", "Boiler-2"]), boilerKinds: store.get("boilerKinds", ["supply", "return"]), boilerRange: store.get("boilerRange", "24h"), boilerSmooth: store.get("boilerSmooth", true) };
 
 // ------------------------------------------------------------------ theme
 const applyTheme = () => { const t = store.get("theme", null); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
@@ -374,8 +389,9 @@ function pt(name) { return state.byName.get(name) || null; }
 function renderStatus() {
   const s = state.status;
   if (!s || !s.last_seen) { setStatus("warn", "poller: no data yet"); return; }
-  const min = (Date.now() - new Date(s.last_seen)) / 60000;
-  setStatus(min <= 5 ? "ok" : min <= 30 ? "warn" : "bad", `updated ${ago(s.last_seen)}${s.points_err ? `, ${s.points_err} read errors` : ""}`);
+  const d = new Date(s.last_seen); const min = (Date.now() - d) / 60000;
+  const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s/g, "").toLowerCase();
+  setStatus(min <= 5 ? "ok" : min <= 30 ? "warn" : "bad", `updated ${ago(s.last_seen)} (${t} - ${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()})${s.points_err ? `, ${s.points_err} read errors` : ""}`);
 }
 
 // ------------------------------------------------------------------ tabs
@@ -387,6 +403,7 @@ function renderTab() {
   clearTimeout(state.timer); clearInterval(state.cmdTimer);
   state.charts.forEach(c => c.destroy()); state.charts = [];
   renderTabs();
+  main.classList.toggle("wide", state.tab === "map");
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
   else if (state.tab === "sched") renderSchedule();
@@ -414,7 +431,8 @@ function renderTemperature() {
     el("label", { class: "chk", title: "Average each minute with the minutes around it so sensor jitter does not show" }, smoothCb, "Smooth"),
     el("span", { class: "hint" }, state.tempRange === "24h" ? "1-minute values, refreshes every minute" : state.tempRange === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
   screen(cards, el("div", { class: "card chart temp" }, el("h3", {}, "°F"), filters, el("div", { id: "tempChart" })),
-         el("div", { class: "card", style: "border-radius: 18px" }, el("h2", {}, "Boilers"), el("div", { class: "boilers", id: "boilers" })));
+         el("div", { class: "card", style: "border-radius: 18px" }, el("h2", {}, "Boilers"), el("div", { class: "boilers", id: "boilers" })),
+         el("div", { class: "card chart temp" }, el("h3", {}, "Boiler temperatures, °F"), boilerFilters(), el("div", { id: "boilerChart" })));
   renderAhuCards(); renderBoilers();
   imageUrl("boiler.png").then(u => { state.boilerImg = u; document.querySelectorAll("#boilers img").forEach(i => { i.src = u; }); });
   refreshTemperature();
@@ -428,14 +446,59 @@ function renderBoilers() {
     const faultCode = fc && fc.last_value != null ? Number(fc.last_value) : 0;
     const firing = f && f.last_value != null && Number(f.last_value) > 0 ? ` · firing at ${Number(f.last_value).toFixed(0)} %` : "";
     let label = code == null ? "no status" : (BOILER_STATUS[code] || `status ${code}`), cls = "";
-    if (faultCode || code === 4) { label = `FAULT${faultCode ? " code " + faultCode : ""}`; cls = "critical"; }
-    else if (code === 3) cls = "ok"; else if (code === 0) cls = "err";
+    if (faultCode || code === 4) { label = `FAULT${faultCode ? " code " + faultCode : ""}`; cls = "err"; }
+    else if (code === 3) cls = "ok"; else if (code === 0) cls = "err"; else if (code === 1 || code === 2) cls = "warn";
     box.append(el("div", { class: "boiler" }, el("h3", {}, b.name),
       el("div", { class: "t" }, deg(s)), el("div", { class: "lbl" }, "supply"),
-      el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }),
-      el("div", { class: "t" }, deg(r)), el("div", { class: "lbl" }, b.retNote ? `return (${b.retNote})` : "return"),
-      el("div", { style: "margin-top:6px;font-size:14px" }, el("span", { class: "badge " + cls, style: "font-size:12px;padding:2px 10px" }, label), firing)));
+      el("div", { class: "imgwrap" }, el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }), el("div", { class: "st " + cls }, label + firing)),
+      el("div", { class: "t" }, deg(r)), el("div", { class: "lbl" }, b.retNote ? `return (${b.retNote})` : "return")));
   }
+}
+// boiler temperature chart, same controls as the air-handler chart
+function chk(text, on, onchange, color) {
+  const cb = el("input", { type: "checkbox" }); cb.checked = on; cb.addEventListener("change", () => onchange(cb.checked));
+  return el("label", { class: "chk", style: color ? `border-left: 4px solid ${color}` : "" }, cb, text);
+}
+function boilerFilters() {
+  const toggle = (key, list, v, on) => { state[key] = list.filter(x => x === v ? on : state[key].includes(x)); store.set(key, state[key]); refreshBoilerChart(); };
+  const names = BOILERS.map(b => b.name);
+  return el("div", { class: "filters", id: "boilerFilters" },
+    ...BOILERS.map((b, i) => chk(b.name, state.boilerSel.includes(b.name), on => toggle("boilerSel", names, b.name, on), css(SERIES[4 + i]))),
+    el("span", { style: "width:8px" }),
+    chk("Supply", state.boilerKinds.includes("supply"), on => toggle("boilerKinds", ["supply", "return"], "supply", on)),
+    chk("Return", state.boilerKinds.includes("return"), on => toggle("boilerKinds", ["supply", "return"], "return", on)),
+    el("span", { style: "width:8px" }),
+    el("div", { class: "group" }, ...Object.entries(RANGES).map(([k, r]) => el("button", { class: k === state.boilerRange ? "on" : "", onclick: () => { state.boilerRange = k; store.set("boilerRange", k); $("#boilerFilters").replaceWith(boilerFilters()); refreshBoilerChart(); } }, r.label))),
+    chk("Smooth", state.boilerSmooth, on => { state.boilerSmooth = on; store.set("boilerSmooth", on); refreshBoilerChart(); }),
+    el("span", { class: "hint" }, state.boilerRange === "24h" ? "1-minute values" : state.boilerRange === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
+}
+function boilerSeriesDefs() {
+  const defs = [];
+  BOILERS.forEach((b, i) => {
+    if (!state.boilerSel.includes(b.name)) return;
+    const sp = pt(b.supply), rp = pt(b.ret);
+    const asF = (p) => ({ ...p, units: "degrees-fahrenheit", kind: "analog" });
+    if (state.boilerKinds.includes("supply") && sp) defs.push({ id: sp.id, label: `${b.name} supply`, color: css(SERIES[4 + i]), width: 2, p: asF(sp) });
+    if (state.boilerKinds.includes("return") && rp) defs.push({ id: rp.id, label: `${b.name} return`, color: css(SERIES[4 + i]), width: 1, dash: [6, 4], p: asF(rp) });
+  });
+  return defs;
+}
+async function refreshBoilerChart() {
+  const holder = $("#boilerChart"); if (!holder) return;
+  holder.classList.add("dim");
+  try {
+    const defs = boilerSeriesDefs();
+    const data = await loadSeries(defs.map(s => s.id), state.boilerRange);
+    const old = holder.querySelector(".uplot"); state.charts = state.charts.filter(c => { if (c.root === old) { c.destroy(); return false; } return true; });
+    holder.replaceChildren();
+    if (!defs.length) holder.append(el("div", { class: "hint" }, "Tick at least one boiler and one temperature."));
+    else {
+      const built = buildSeries(data, defs);
+      if (state.boilerSmooth) for (const s of built.series) { s.ys = smooth(s.ys, state.boilerRange === "24h" ? 5 : 3); if (s.mins) { s.mins = smooth(s.mins, 3); s.maxs = smooth(s.maxs, 3); } }
+      if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 280, curved: true });
+    }
+  } catch (e) { holder.replaceChildren(el("div", { class: "hint" }, "Could not load boiler data: " + (e.message || e))); }
+  finally { holder.classList.remove("dim"); }
 }
 function renderAhuCards() {
   const box = $("#ahuCards"); if (!box) return; box.replaceChildren();
@@ -476,6 +539,7 @@ async function refreshTemperature() {
       if (state.tempSmooth) for (const s of built.series) { s.ys = smooth(s.ys, state.tempRange === "24h" ? 5 : 3); if (s.mins) { s.mins = smooth(s.mins, 3); s.maxs = smooth(s.maxs, 3); } }
       if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 320, curved: true });
     }
+    await refreshBoilerChart();
   } catch (e) {
     holder.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load data: "), String(e.message || e)));
   } finally { holder.classList.remove("dim"); }
@@ -553,7 +617,7 @@ async function imageUrl(name) {
 
 // ------------------------------------------------------------------ Map tab
 function renderMap() {
-  const box = el("div", { class: "map", id: "mapBox" });
+  const box = el("div", { class: "map full", id: "mapBox" });
   const img = el("img", { alt: "Building floor plan" });
   const coords = el("div", { class: "coords" }, "move the pointer over the picture for x / y");
   const note = el("div", { class: "card hint" }, "Room temperatures (big) and in-floor slab temperatures (small, dashed, placed from the hydronic plan's S1 sensor marks) drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot.");
@@ -569,9 +633,10 @@ function renderMap() {
 function drawSpots() {
   const box = $("#mapBox"); if (!box) return;
   box.querySelectorAll(".spot").forEach(s => s.remove());
+  box.querySelectorAll("svg.spot-lines").forEach(s => s.remove());
   MAP.spots.forEach((s, i) => {
     const p = pt(s.point); const v = p ? fmtVal(p, p.last_value) : "–";
-    box.append(el("div", { class: "spot" + (s.sm ? " sm" : ""), style: `left:${s.x}%;top:${s.y}%;--sc:${s.sm ? css("--s7") : css(SERIES[i % SERIES.length])}`, title: p ? `${p.display_name}, ${ago(p.last_ts)}` : s.point },
+    box.append(el("div", { class: "spot" + (s.sm ? " sm" : ""), "data-i": i, style: `left:${s.x}%;top:${s.y}%;--sc:${s.sm ? css("--s7") : css(SERIES[i % SERIES.length])}`, title: p ? `${p.display_name}, ${ago(p.last_ts)}` : s.point },
       v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label)));
   });
   // keep the small floor markers clear of the big room boxes, whatever the screen size
@@ -585,7 +650,25 @@ function drawSpots() {
       sEl.style.marginTop = (parseFloat(sEl.style.marginTop || "0") + (up <= down ? -up : down)) + "px";
     }
   }
+  // a line from each floor box to the slab sensor it reads, with a dot at the sensor
+  const br = box.getBoundingClientRect();
+  if (!br.width) return;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "spot-lines"); svg.setAttribute("viewBox", `0 0 ${br.width} ${br.height}`);
+  const lineColor = css("--s7");
+  for (const sEl of box.querySelectorAll(".spot.sm")) {
+    const s = MAP.spots[Number(sEl.dataset.i)]; if (s.sx == null) continue;
+    const r = sEl.getBoundingClientRect();
+    const x1 = r.left + r.width / 2 - br.left, y1 = r.top + r.height / 2 - br.top, x2 = s.sx / 100 * br.width, y2 = s.sy / 100 * br.height;
+    const line = document.createElementNS(NS, "line");
+    for (const [k, v] of Object.entries({ x1, y1, x2, y2, stroke: lineColor, "stroke-width": 2, "stroke-dasharray": "5 4", opacity: .85 })) line.setAttribute(k, v);
+    const dot = document.createElementNS(NS, "circle");
+    for (const [k, v] of Object.entries({ cx: x2, cy: y2, r: 5, fill: lineColor, stroke: "#fff", "stroke-width": 1.5 })) dot.setAttribute(k, v);
+    svg.append(line, dot);
+  }
+  box.append(svg);
 }
+window.addEventListener("resize", () => { if ($("#mapBox")) drawSpots(); });
 async function refreshMap() {
   clearTimeout(state.timer);
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); drawSpots(); } catch {}
@@ -652,11 +735,12 @@ async function refreshSchedule() {
         el("div", { class: "ticks" }, ...[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => el("span", { style: `left:${h / 24 * 100}%` }, h % 24 === 0 ? "12 am" : h === 12 ? "noon" : h < 12 ? `${h} am` : `${h - 12} pm`))));
       for (let di = 0; di < 7; di++) {
         const segs = daySegments(weekly[di], d.default);
-        const bar = el("div", { class: "bar" });
+        const today = di === todayIdx;
+        const bar = el("div", { class: "bar" + (today ? " today" : "") });
         for (const g of segs) if (schedOn(s, g.v)) bar.append(el("div", { class: "seg", style: `left:${g.s / 1440 * 100}%;width:${(g.e - g.s) / 1440 * 100}%;background:${color}`, title: `${fmtMin(g.s)} – ${fmtMin(g.e)} ${schedLabel(s, g.v)}` }));
-        if (di === todayIdx) bar.append(el("div", { class: "now", style: `left:${nowMin / 1440 * 100}%`, title: "now" }));
+        bar.append(el("div", { class: "now", style: `left:${nowMin / 1440 * 100}%${di === todayIdx ? "" : ";opacity:.45"}`, title: "now" }));
         const on = segs.filter(g => schedOn(s, g.v)).map(g => `${fmtMin(g.s)} – ${fmtMin(g.e)}`);
-        grid.append(el("div", { class: "day" + (di === todayIdx ? " today" : ""), title: DAY_NAMES[di] }, DAY_NAMES[di].slice(0, 3)), bar, el("div", { class: "times" }, on.length ? on.join(", ") : "–"));
+        grid.append(el("div", { class: "day" + (today ? " today" : ""), title: today ? DAY_NAMES[di] + " (today)" : DAY_NAMES[di] }, DAY_NAMES[di].slice(0, 3)), bar, el("div", { class: "times" + (today ? " today" : "") }, on.length ? on.join(", ") : "–"));
       }
       card.append(grid);
       list.append(card);
@@ -717,7 +801,7 @@ function renderDetails() {
     el("span", { class: "hint" }, state.range === "24h" ? "1-minute values, refreshes every minute" : state.range === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
   screen(section("trends", "Trends", true, filters, el("div", { id: "charts" })),
          ALLOW_CHANGES ? section("controls", "Set from here", true, el("div", { id: "controls" })) : null,
-         section("values", "Current values", true, el("div", { class: "hint" }, "Every logged point, by equipment. Click a value to add it to the trend chart; click a heading to open or close that group."), el("div", { id: "tiles" })),
+         section("values", "Current values", true, el("div", { class: "hint" }, "Every logged point, by equipment. Click a row to add it to the trend chart; click a heading to open or close that group."), el("div", { id: "tiles" })),
          section("alerts", "Alerts", true, el("div", { id: "alerts" })),
          section("rules", "Alert rules", false, el("div", { id: "rules" })));
   buildPicker(); buildTiles(); renderExtras();
@@ -767,15 +851,16 @@ function buildTiles() {
   const keys = [...groups.keys()].sort((a, b) => { const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || String(a).localeCompare(String(b)); });
   for (const g of keys) {
     const pts = groups.get(g).slice().sort((a, b) => tileRank(a) - tileRank(b) || a.display_name.localeCompare(b.display_name));
-    const grid = el("div", { class: "tiles" });
+    const tb = el("tbody");
     for (const p of pts) {
       const c = colorOf(p.id);
       const short = g && p.display_name.startsWith(g + ".") ? p.display_name.slice(g.length + 1) : p.display_name;
-      grid.append(el("div", { class: "tile" + (c ? " sel" : ""), style: c ? `--sc:${c}` : "", onclick: () => toggleSel(p.id) },
-        el("div", { class: "name", title: p.display_name }, short, p.command_rule ? " ⚙" : ""),
-        el("div", { class: "val" + (fmtVal(p, p.last_value).length > 11 ? " long" : "") }, fmtVal(p, p.last_value), el("small", {}, p.kind === "analog" ? unitLabel(p.units) : "")),
-        el("div", { class: "meta" }, ago(p.last_ts), ...badges(p.last_flags))));
+      tb.append(el("tr", { class: c ? "sel" : "", style: c ? `--sc:${c}` : "", title: p.display_name, onclick: () => toggleSel(p.id) },
+        el("td", {}, short, p.command_rule ? " ⚙" : ""),
+        el("td", { class: "num" }, fmtVal(p, p.last_value) + (p.kind === "analog" && unitLabel(p.units) ? " " + unitLabel(p.units) : "")),
+        el("td", { class: "hint" }, ago(p.last_ts)), el("td", {}, ...badges(p.last_flags))));
     }
+    const grid = el("table", { class: "vals" }, el("thead", {}, el("tr", {}, el("th", {}, "Point"), el("th", { class: "num" }, "Value"), el("th", {}, "Updated"), el("th", {}, ""))), tb);
     const d = el("details", { class: "grp" }, el("summary", {}, GROUPS[g] || g || "(other)", el("span", { class: "hint" }, `${pts.length} points`)), grid);
     d.open = store.get("grp." + g, /^FEC-[678]$/.test(String(g)));
     d.addEventListener("toggle", () => store.set("grp." + g, d.open));
