@@ -108,8 +108,8 @@
   .mapfit { overflow: hidden; }
   /* Boiler room drawing: pipes with moving dashes where water is being pumped */
   .broom svg { max-width: 1100px; margin: 0 auto; }
-  .ahusvg svg { max-width: 1100px; margin: 0 auto; }
-  .ahusvg .pipe.flow { stroke-dasharray: 10 7; animation: pipeflow 1.2s linear infinite; }
+  .ahusvg svg, .loopsvg svg, .fansvg svg { max-width: 1100px; margin: 0 auto; }
+  .ahusvg .pipe.flow, .loopsvg .pipe.flow, .fansvg .pipe.flow { stroke-dasharray: 10 7; animation: pipeflow 1.2s linear infinite; }
   .broom .pipe.flow { stroke-dasharray: 10 7; animation: pipeflow 1.2s linear infinite; }
   @keyframes pipeflow { to { stroke-dashoffset: -17; } }
   hr.sep { border: 0; border-top: 2px solid var(--axis); margin: 20px 0 14px; }
@@ -240,7 +240,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["boiler", "Boiler room"], ["ahu", "Air handlers"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only; Boiler room and Air handlers beside the floor plan)
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["boiler", "Boiler room"], ["loop", "Heating loop"], ["ahu", "Air handlers"], ["fans", "Exhaust fans"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only; the drawings beside the floor plan)
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -495,6 +495,8 @@ function renderTab() {
   else if (state.tab === "map") renderMap();
   else if (state.tab === "boiler") renderBoilerRoom();
   else if (state.tab === "ahu") renderAhus();
+  else if (state.tab === "loop") renderLoop();
+  else if (state.tab === "fans") renderFans();
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
   else if (state.tab === "admin") renderAdmin();
@@ -1013,7 +1015,9 @@ function ahuSvg(a) {
   const tag = (x, y, letters, value, side = "r", big = false) => `<circle cx="${x}" cy="${y}" r="12" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/><text x="${x}" y="${y + 3.5}" text-anchor="middle" font-size="9" font-weight="700" fill="${ink2}">${letters}</text>` +
     `<text x="${side === "r" ? x + 17 : x - 17}" y="${y + (big ? 6 : 5)}" text-anchor="${side === "r" ? "start" : "end"}" font-size="${big ? 17 : 13}" font-weight="700" fill="${ink}">${esc(value)}</text>`;
   // a duct: wide grey band, with a thin moving line in it while the fan that moves this air is running
-  const duct = (d, flowing) => `<path d="${d}" fill="none" stroke="${ductColor}" stroke-width="16" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${ink2}" stroke-width="2" stroke-linejoin="round" class="pipe flow"/>` : "");
+  // moving air is a light-blue dashed line (Russ, 2026-11-06); every duct path is written in the direction the air goes
+  const airColor = "#5fb8ff";
+  const duct = (d, flowing) => `<path d="${d}" fill="none" stroke="${ductColor}" stroke-width="16" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${airColor}" stroke-width="3" stroke-linejoin="round" class="pipe flow"/>` : "");
   const arrow = (x, y, dir, color = ink2) => { const s = 6; const pts = dir === "r" ? `${x - s},${y - s} ${x + s},${y} ${x - s},${y + s}` : dir === "l" ? `${x + s},${y - s} ${x - s},${y} ${x + s},${y + s}` : dir === "d" ? `${x - s},${y - s} ${x},${y + s} ${x + s},${y - s}` : `${x - s},${y + s} ${x},${y - s} ${x + s},${y + s}`; return `<polygon points="${pts}" fill="${color}"/>`; };
   // damper: a frame in the duct with one blade turned to the commanded opening (0 % = across the duct, 100 % = along it)
   const damper = (x, y, pct, vertical, name, note) => { const p = pct == null ? 0 : Math.max(0, Math.min(100, pct)); const ang = (vertical ? 0 : 90) - p * 0.9;
@@ -1104,6 +1108,188 @@ function ahuSvg(a) {
   // --- source
   s += label(500, 372, `after sheet M2.1 section view ${i + 2} (${a.name}), M5.1 detail ${a.key === "AHU-2" ? 5 : 7} and M2.2 (WSN, 2013); sensor positions inferred, live values from the logger`, "middle", 8);
   return `<svg viewBox="0 0 1000 380" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
+}
+
+// ------------------------------------------------------------------ shared drawing helpers for the Heating loop and Exhaust fans tabs
+function svgKit() {
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]));
+  const k = { esc, red: css("--s8"), blue: css("--s1"), ink: css("--ink"), ink2: css("--ink-2"), muted: css("--muted"), surface: css("--surface"), grid: css("--axis"), ductColor: css("--grid"),
+              good: css("--good"), bad: css("--critical"), warn: css("--warning"), air: "#5fb8ff" };
+  k.num = (name, d = 1, unit = "") => { const p = pt(name); return p && p.last_value != null ? Number(p.last_value).toFixed(d) + unit : "–"; };
+  k.val = (name) => { const p = pt(name); return p && p.last_value != null ? Number(p.last_value) : null; };
+  k.on = (name) => k.val(name) === 1;
+  k.has = (name) => !!pt(name);
+  k.txt = (name) => { const p = pt(name); return p ? fmtVal(p, p.last_value) : "–"; };
+  k.label = (x, y, text, anchor = "start", size = 11, color = k.muted, weight = 400) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${color}" font-weight="${weight}">${esc(text)}</text>`;
+  k.tag = (x, y, letters, value, side = "r", big = false) => `<circle cx="${x}" cy="${y}" r="12" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.6"/><text x="${x}" y="${y + 3.5}" text-anchor="middle" font-size="9" font-weight="700" fill="${k.ink2}">${letters}</text>` +
+    `<text x="${side === "r" ? x + 17 : x - 17}" y="${y + (big ? 6 : 5)}" text-anchor="${side === "r" ? "start" : "end"}" font-size="${big ? 17 : 13}" font-weight="700" fill="${k.ink}">${esc(value)}</text>`;
+  k.pipe = (d, color, flow, w = 4) => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linejoin="round" class="pipe${flow ? " flow" : ""}"/>`;
+  k.duct = (d, flowing) => `<path d="${d}" fill="none" stroke="${k.ductColor}" stroke-width="14" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${k.air}" stroke-width="3" stroke-linejoin="round" class="pipe flow"/>` : "");
+  k.arrow = (x, y, dir, color = k.ink2, s = 6) => { const pts = dir === "r" ? `${x - s},${y - s} ${x + s},${y} ${x - s},${y + s}` : dir === "l" ? `${x + s},${y - s} ${x - s},${y} ${x + s},${y + s}` : dir === "d" ? `${x - s},${y - s} ${x},${y + s} ${x + s},${y - s}` : `${x - s},${y + s} ${x},${y - s} ${x + s},${y + s}`; return `<polygon points="${pts}" fill="${color}"/>`; };
+  // control valve: bowtie, a third triangle below for a 3-way, drawn solid when open
+  k.valve = (x, y, kind, open) => { const f = open ? k.red : k.surface; let s = `<g transform="translate(${x},${y})"><polygon points="-8,-6 8,6 8,-6 -8,6" fill="${f}" stroke="${k.ink2}" stroke-width="1.5"/>`;
+    if (kind === "3-way") s += `<polygon points="0,0 -6,10 6,10" fill="${f}" stroke="${k.ink2}" stroke-width="1.5"/>`; if (kind === "zone") s += `<line x1="0" y1="-6" x2="0" y2="-13" stroke="${k.ink2}" stroke-width="1.5"/><rect x="-5" y="-19" width="10" height="6" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.2"/>`;
+    return s + `</g>`; };
+  k.fan = (x, y, run, alarm, r = 17) => { const stroke = alarm ? k.bad : run ? k.good : k.grid;
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><path d="M ${x} ${y} l 10 -12 a ${r} ${r} 0 0 1 2 20 z" fill="${stroke}" opacity=".85"/><path d="M ${x} ${y} l -10 12 a ${r} ${r} 0 0 1 -2 -20 z" fill="${stroke}" opacity=".5"/>`; };
+  k.pump = (x, y, run, alarm, r = 14) => { const stroke = alarm ? k.bad : run ? k.good : k.grid;
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="${k.surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><path d="M ${x} ${y} l 9 -10 a ${r} ${r} 0 0 1 1 17 z" fill="${stroke}" opacity=".85"/>`; };
+  return k;
+}
+
+// ------------------------------------------------------------------ Heating loop tab (Russ, 2026-11-06)
+// The hot-water distribution as a ladder: supply riser on the left, return riser on the right, one rung per load in the
+// order the hydronic isometric (M3.1 detail 4) reaches them going out from the boiler room: MAN-2, MAN-3, AHU-3, MAN-1,
+// AHU-2, MAN-10, MAN-11, AHU-1, MAN-8, MAN-9, MAN-7, MAN-6, MAN-5, MAN-4, CUH-1, CUH-2 (the 3" mains taper to 1").
+// Valves as drawn: three-way at AHU-1 / AHU-3 / CUH-1 / CUH-2 (M5.1 details 6 and 7), two-way at AHU-2 (detail 5), one
+// zone valve per manifold (detail 13). Live values: FEC-5 valve commands + slab temperatures + setpoints (floor zone N
+// is taken to be manifold MAN-N, as on the floor plan), HTG-O of each AHU and cabinet heater, the loop ΔP (basement,
+// by the AHU-1 risers on M3.1 detail 1) and the pumps. No controls sheet, so the pairing is inferred.
+const LOOP = [
+  { id: "MAN-2", kind: "man", zone: 2, where: "Worship (south)", size: "3/4\"" }, { id: "MAN-3", kind: "man", zone: 3, where: "Classrooms (south-east)", size: "3/4\"" },
+  { id: "AHU-3", kind: "coil", fec: "FEC-8", valve: "3-way", where: "Worship Area", size: "1-1/2\"" },
+  { id: "MAN-1", kind: "man", zone: 1, where: "Worship (east)", size: "1\"" },
+  { id: "AHU-2", kind: "coil", fec: "FEC-7", valve: "2-way", where: "Kitchen and Dining", size: "1-1/2\"" },
+  { id: "MAN-10", kind: "man", zone: 10, where: "Fellowship (centre)", size: "1\"" }, { id: "MAN-11", kind: "man", zone: 11, where: "Kitchen / Storage", size: "1\"" },
+  { id: "AHU-1", kind: "coil", fec: "FEC-6", valve: "3-way", where: "Fellowship Area, Main Entry", size: "1-1/2\"" },
+  { id: "MAN-8", kind: "man", zone: 8, where: "Dining", size: "1\"" }, { id: "MAN-9", kind: "man", zone: 9, where: "Fellowship (west)", size: "1\"" },
+  { id: "MAN-7", kind: "man", zone: 7, where: "Coats / Women's restroom", size: "2\"" }, { id: "MAN-6", kind: "man", zone: 6, where: "Entry", size: "2\"" },
+  { id: "MAN-5", kind: "man", zone: 5, where: "Vestibule / Coats", size: "2\"" }, { id: "MAN-4", kind: "man", zone: 4, where: "Nursery / Hall", size: "2\"" },
+  { id: "CUH-1", kind: "cuh", n: 1, valve: "3-way", where: "Vestibule, cabinet heater", size: "3/4\"" }, { id: "CUH-2", kind: "cuh", n: 2, valve: "3-way", where: "Vestibule, cabinet heater", size: "3/4\"" },
+];
+function renderLoop() {
+  screen(el("div", { class: "card hint" }, "Where the boiler water goes, drawn as a ladder after the hydronic isometric on sheet M3.1 (detail 4): supply on the left, return on the right, ",
+      "one rung per load in the order the pipe reaches them out of the boiler room: the three air-handler heating coils, the two cabinet heaters in the vestibule and the eleven ",
+      "in-floor manifolds. A rung lights up and moves when its valve is open and a pump is running; each manifold shows its slab temperature and setpoint. Refreshes every minute. Pinch to zoom on a phone."),
+    el("div", { class: "card", style: "padding:6px" }, el("div", { id: "loopRoom", class: "loopsvg" }, "Loading…")));
+  refreshLoop();
+}
+async function refreshLoop() {
+  clearTimeout(state.timer);
+  const box = $("#loopRoom"); if (!box) return;
+  try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); box.innerHTML = loopSvg(); }
+  catch (e) { box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
+  state.timer = setTimeout(refreshLoop, 60000);
+}
+function loopSvg() {
+  const k = svgKit(); const { label, tag, pipe, arrow, valve, num, val, on, has, txt } = k;
+  const pumpOn = on("Local Application.CP1-S") || on("Local Application.CP2-S");
+  const pumpTxt = [["CP-1", "CP1"], ["CP-2", "CP2"]].map(([n, p]) => on(`Local Application.${p}-S`) ? `${n} ON ${num(`Local Application.${p}-O`, 0, " %")}` : `${n} off`).join(" · ");
+  const SX = 60, RX = 940, TOP = 110, STEP = 27;
+  let s = "";
+  // --- header: what the plant is doing
+  s += label(20, 22, "HEATING LOOP", "start", 15, k.ink, 700) + label(140, 22, `pumps: ${pumpTxt} · boiler setpoint ${num("Local Application.BLRSP-O", 1, " °F")}`, "start", 11, k.ink2, 600);
+  const oat = val("FEC-5.OA-T"), lock = val("FEC-5.HTGOATLOCKOUT-SP"), mode = txt("FEC-5.VLV-CTRL");
+  const floorNote = lock != null && oat != null ? (oat >= lock ? `floor heating locked out: outdoors ${oat.toFixed(1)} °F is above ${lock.toFixed(0)} °F` : `floor heating allowed below ${lock.toFixed(0)} °F outdoors (now ${oat.toFixed(1)})`) : "";
+  s += label(20, 40, `${floorNote}${has("FEC-5.VLV-CTRL") ? ` · zone valves in ${mode} mode` : ""}${has("FEC-5.SYSTEM-EN") && !on("FEC-5.SYSTEM-EN") ? " · FLOOR SYSTEM DISABLED" : ""}`, "start", 9.5, has("FEC-5.SYSTEM-EN") && !on("FEC-5.SYSTEM-EN") ? k.bad : k.muted);
+  // --- risers
+  const bottom = TOP + (LOOP.length - 1) * STEP + 30;
+  s += pipe(`M ${SX} 72 V ${bottom}`, k.red, pumpOn, 5) + pipe(`M ${RX} ${TOP} V ${bottom + 10} H ${RX - 60}`, k.blue, pumpOn, 5);
+  s += arrow(SX, 92, "d", k.red) + arrow(RX, bottom - 40, "d", k.blue) + arrow(RX - 45, bottom + 10, "l", k.blue);
+  s += tag(SX + 30, 72, "T", num("Local Application.HWS-T", 1, " °F"), "r", true) + label(SX + 47, 58, "FROM THE BOILER ROOM · 3\" HWS", "start", 9, k.ink2, 600);
+  s += tag(RX - 80, bottom + 10, "T", num("Local Application.HWR-T", 1, " °F"), "l", true) + label(RX - 97, bottom + 26, "BACK TO THE BOILER ROOM · 3\" HWR", "end", 9, k.ink2, 600);
+  const dp = val("Local Application.HW-DP"), dpsp = val("Local Application.HWDP-SP");
+  s += tag(RX, 72, "ΔP", dp == null ? "–" : `${dp.toFixed(1)} psi`, "l") + label(RX - 17, 58, `loop pressure difference${dpsp != null ? ` (setpoint ${dpsp.toFixed(1)})` : ""}`, "end", 9);
+  // --- rungs
+  let calling = 0;
+  LOOP.forEach((L, i) => {
+    const y = TOP + i * STEP; let open = false, above = "", below = "", kind = L.valve || "zone", name = L.id, boxText = "";
+    if (L.kind === "man") {
+      const v = val(`FEC-5.ZN${L.zone}V-C`), t = num(`FEC-5.ZN${L.zone}SLAB-T`, 1, " °F"), sp = num(`FEC-5.ZN${L.zone}SLABT-SP`, 0, " °F");
+      open = v === 1; boxText = `${L.id} · floor zone ${L.zone}`;
+      above = `slab ${t} · setpoint ${sp}`; below = v == null ? "no valve point" : open ? "zone valve OPEN" : "zone valve closed";
+    } else if (L.kind === "coil") {
+      const h = val(`${L.fec}.HTG-O`) || 0; open = h > 0; boxText = `${L.id} heating coil`;
+      above = `valve ${has(`${L.fec}.HTG-O`) ? h.toFixed(0) + " % open" : "–"} · discharge ${num(`${L.fec}.DA-T`, 1, " °F")}`; below = `${L.valve} control valve · zone ${num(`${L.fec}.ZN-T`, 1, " °F")}`;
+      if (has(`${L.fec}.HTG-EN`) && !on(`${L.fec}.HTG-EN`)) below = "heating disabled at the unit";
+    } else {
+      const h = val(`FEC-10.CUH${L.n}-HTG-O`) || 0; open = h > 0; boxText = `${L.id} cabinet unit heater`;
+      above = `valve ${has(`FEC-10.CUH${L.n}-HTG-O`) ? h.toFixed(0) + " % open" : "–"} · fan ${on(`FEC-10.CUH${L.n}-SF-S`) ? "ON" : "off"}`; below = `${L.valve} control valve · vestibule ${num("FEC-10.ZN-T", 1, " °F")} (setpoint ${num("FEC-10.ZNT-SP", 0)})`;
+    }
+    if (open) calling++;
+    const flow = open && pumpOn;
+    s += pipe(`M ${SX} ${y} H 362`, k.red, flow, 3) + pipe(`M 538 ${y} H ${RX}`, k.blue, flow, 3);
+    s += label(SX + 14, y - 5, `${name} · ${L.where}`, "start", 8.5, open ? k.ink : k.ink2, 700) + label(SX + 14, y + 11, `${L.size} HWS & HWR`, "start", 7);
+    s += valve(338, y, kind, open);
+    s += `<rect x="362" y="${y - 10}" width="176" height="20" rx="5" fill="${open ? k.red : k.surface}" fill-opacity="${open ? .18 : 1}" stroke="${open ? k.red : k.grid}" stroke-width="${open ? 2 : 1.4}"/>` + label(450, y + 3.5, boxText, "middle", 8.5, open ? k.ink : k.ink2, 700);
+    s += label(550, y - 5, above, "start", 8, k.ink2, 600) + label(550, y + 11, below, "start", 7.5, open ? k.good : k.muted, open ? 700 : 400);
+  });
+  s += label(RX - 17, 92, `${calling} of ${LOOP.length} loads calling for heat`, "end", 9, k.ink2, 600);
+  s += label(500, bottom + 44, "after sheet M3.1 details 1 and 4, M3.2 and M5.1 details 5, 6, 7 and 13 (WSN, 2013); manifold N = floor zone N and the ΔP location are inferred; live values from the logger", "middle", 8);
+  return `<svg viewBox="0 0 1000 ${bottom + 54}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
+}
+
+// ------------------------------------------------------------------ Exhaust fans tab (Russ, 2026-11-06)
+// FEC-9 runs the three exhaust fans, the two domestic hot-water recirculation pumps and reads the Sound Room fan coil.
+// Where they are, from the plans: EF-1 on the roof pulling from the men's and women's restrooms through a motorized
+// damper (M2.2, 16x14 duct); EF-2 ceiling-mounted in the toilet room by the crib rooms, 8" up to a gooseneck on the roof
+// (M2.2, M5.2 detail 4); EF-3 on the roof for the kitchen grilles and the dishwasher hood, through a motorized damper
+// (M2.2, M5.2 details 6 and 9). RCP-1 / RCP-2 are the recirculation pumps on the water heaters WH-1 / WH-2 (plumbing
+// sheets; RCP-2 with the mixing valve TMV-1), not radiant panels. FCU-1 is the Sound Room fan coil with its condensing
+// unit CU-4 outside (M2.2); the engine only reads its room temperature.
+const FANS = [
+  { id: "EF-1", p: "EF1", where: "Men's & women's restrooms", how: "on the roof · 16x14 duct · motorized damper", detail: "M2.2" },
+  { id: "EF-2", p: "EF2", where: "Toilet room by the crib rooms", how: "ceiling fan · 8\" gooseneck on the roof", detail: "M2.2 / M5.2 detail 4" },
+  { id: "EF-3", p: "EF3", where: "Kitchen & dishwasher hood", how: "on the roof · 16x16 duct · motorized damper", detail: "M2.2 / M5.2 details 6, 9" },
+];
+function renderFans() {
+  screen(el("div", { class: "card hint" }, "The three exhaust fans, the two domestic hot-water recirculation pumps and the Sound Room fan coil, all on controller FEC-9. ",
+      "Each fan shows whether the engine is commanding it, whether it is actually running, and what its schedule says; moving light-blue dashes show air leaving the building. ",
+      "The plan set calls RCP-1 and RCP-2 recirculation pumps on the water heaters (plumbing sheets), not radiant panels. Refreshes every minute. Pinch to zoom on a phone."),
+    el("div", { class: "card", style: "padding:6px" }, el("div", { id: "fansRoom", class: "fansvg" }, "Loading…")));
+  refreshFans();
+}
+async function refreshFans() {
+  clearTimeout(state.timer);
+  const box = $("#fansRoom"); if (!box) return;
+  try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); box.innerHTML = fansSvg(); }
+  catch (e) { box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
+  state.timer = setTimeout(refreshFans, 60000);
+}
+function fansSvg() {
+  const k = svgKit(); const { label, tag, duct, arrow, fan, pump, num, val, on, has, txt } = k;
+  let s = "";
+  // --- three exhaust fans side by side: room box at the bottom, duct up through the roof line to the fan and out
+  FANS.forEach((F, i) => {
+    const x0 = 20 + i * 327, cx = x0 + 160; const run = on(`FEC-9.${F.p}-S`), cmd = val(`FEC-9.${F.p}-C`), sched = txt(`FEC-9.${F.p}-OCC-SCHEDULE`);
+    const mismatch = cmd != null && has(`FEC-9.${F.p}-S`) && (cmd === 1) !== run;
+    s += `<rect x="${x0}" y="14" width="312" height="236" rx="12" fill="none" stroke="${k.grid}" stroke-width="1.2"/>`;
+    s += label(x0 + 14, 36, F.id, "start", 16, k.ink, 700) + label(x0 + 60, 36, F.where, "start", 10, k.ink2, 600);
+    s += label(x0 + 14, 50, F.how, "start", 8);
+    // roof line
+    s += `<line x1="${x0 + 20}" y1="112" x2="${x0 + 292}" y2="112" stroke="${k.ink2}" stroke-width="1.5" stroke-dasharray="6 4"/>` + label(x0 + 292, 108, "roof", "end", 7.5);
+    // room, grille, duct up, fan, discharge
+    s += `<rect x="${cx - 70}" y="176" width="140" height="62" rx="6" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.4"/>` + label(cx, 224, F.where, "middle", 8, k.ink2, 600) + label(cx, 234, "exhaust grille in the ceiling", "middle", 7);
+    for (let g = -16; g <= 16; g += 8) s += `<line x1="${cx - 20}" y1="${184 + (g + 16) / 4}" x2="${cx + 20}" y2="${184 + (g + 16) / 4}" stroke="${k.ink2}" stroke-width="1"/>`;
+    s += duct(`M ${cx} 176 V 92`, run) + arrow(cx, 150, "u", k.ink2) ;
+    s += fan(cx, 78, run, false, 17);
+    s += duct(`M ${cx} 60 V 44 H ${cx + 50}`, run) + arrow(cx + 40, 44, "r", k.ink2) + label(cx + 58, 48, "out", "start", 8, run ? k.air : k.muted, 700);
+    const stTxt = !has(`FEC-9.${F.p}-S`) ? "–" : run ? "RUNNING" : "off";
+    s += label(cx + 26, 74, stTxt, "start", 12, run ? k.good : k.muted, 700) + label(cx + 26, 86, cmd == null ? "" : `commanded ${cmd === 1 ? "on" : "off"}`, "start", 8, mismatch ? k.bad : k.muted, mismatch ? 700 : 400);
+    if (mismatch) s += label(cx + 26, 97, cmd === 1 ? "NOT RUNNING" : "RUNNING ANYWAY", "start", 8, k.bad, 700);
+    s += label(cx - 26, 74, `schedule: ${sched}`, "end", 8.5, /occupied$/i.test(sched) && !/unoccupied/i.test(sched) ? k.ink2 : k.muted, 600);
+    s += label(x0 + 14, 244, F.detail, "start", 7);
+  });
+  // --- recirculation pumps and the sound room fan coil
+  const y0 = 268;
+  s += `<rect x="20" y="${y0}" width="640" height="118" rx="12" fill="none" stroke="${k.grid}" stroke-width="1.2"/>`;
+  s += label(34, y0 + 22, "DOMESTIC HOT WATER RECIRCULATION", "start", 11, k.ink, 700) + label(34, y0 + 36, "keeps hot water moving through the building's hot-water pipes so the taps run hot quickly (plumbing sheets P-series; RCP-2 feeds the mixing valve TMV-1)", "start", 7.5);
+  [["RCP-1", "RCP1", "water heater WH-1"], ["RCP-2", "RCP2", "water heater WH-2 (kitchen side)"]].forEach(([id, p, wh], i) => {
+    const x = 70 + i * 310, y = y0 + 76; const run = on(`FEC-9.${p}-S`), cmd = val(`FEC-9.${p}-C`), sched = txt(`FEC-9.${p}-OCC-SCHEDULE`);
+    const mismatch = cmd != null && has(`FEC-9.${p}-S`) && (cmd === 1) !== run;
+    s += `<rect x="${x}" y="${y - 20}" width="40" height="44" rx="5" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.4"/>` + label(x + 20, y - 4, "WH", "middle", 9, k.ink2, 700) + label(x + 20, y + 8, id.replace("RCP", "") , "middle", 8, k.ink2);
+    s += k.pipe(`M ${x + 40} ${y - 10} H ${x + 90}`, k.red, run, 3) + k.pipe(`M ${x + 170} ${y - 10} V ${y + 14} H ${x + 40}`, k.red, run, 3) + arrow(x + 70, y - 10, "r", k.red) + arrow(x + 110, y + 14, "l", k.red);
+    s += pump(x + 110, y - 10, run, false, 13);
+    s += label(x + 130, y - 14, id, "start", 12, k.ink, 700) + label(x + 130, y - 3, !has(`FEC-9.${p}-S`) ? "–" : run ? "RUNNING" : "off", "start", 10, run ? k.good : k.muted, 700);
+    s += label(x + 180, y + 10, `${cmd == null ? "" : `commanded ${cmd === 1 ? "on" : "off"} · `}schedule: ${sched}`, "start", 7.5, mismatch ? k.bad : k.muted, mismatch ? 700 : 400);
+    s += label(x + 20, y + 36, wh, "middle", 7);
+  });
+  s += `<rect x="676" y="${y0}" width="304" height="118" rx="12" fill="none" stroke="${k.grid}" stroke-width="1.2"/>`;
+  s += label(690, y0 + 22, "FCU-1 · SOUND ROOM", "start", 11, k.ink, 700) + label(690, y0 + 36, "fan coil with condensing unit CU-4 outside (M2.2)", "start", 7.5);
+  s += `<rect x="700" y="${y0 + 48}" width="110" height="52" rx="6" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.4"/>` + fan(755, y0 + 70, false, false, 12) + label(755, y0 + 94, "FCU-1", "middle", 8, k.ink2, 700);
+  s += label(900, y0 + 70, num("FEC-9.FCU1-ZN-T", 1), "middle", 24, k.ink, 700) + label(900, y0 + 86, "°F in the Sound Room", "middle", 8.5) + label(900, y0 + 98, "the engine only reads the temperature here", "middle", 7);
+  s += label(500, 408, "after sheets M2.2, M5.2 and the plumbing sheets (WSN, 2013); live values from the logger", "middle", 8);
+  return `<svg viewBox="0 0 1000 418" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
 }
 
 // ------------------------------------------------------------------ Schedule tab (read from the engine's Schedule objects)
@@ -1520,6 +1706,14 @@ function demoPoints() {
     out.push(mk(id++, `${fec}.LT-A`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]), mk(id++, `${fec}.DA-SD`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]), mk(id++, `${fec}.RA-SD`, fec, "binary", null, 0, 0, ["Normal", "Alarm"]));
     out.push(mk(id++, `${fec}.WC-C`, fec, "multistate", null, 1, 0, ["Normal", "Warmup", "Cooldown", "Coast"]), mk(id++, `${fec}.UNITEN-MODE`, fec, "multistate", null, 2, 0, ["Shutdown", "Enable"]));
   });
+  // heating loop and exhaust fans: floor zone valves and setpoints, cabinet heaters, pumps, exhaust fans, recirculation pumps
+  for (let z = 1; z <= 11; z++) { out.push(mk(id++, `FEC-5.ZN${z}V-C`, "FEC-5", "binary", null, z === 2 || z === 8 ? 1 : 0, 0, ["Close", "Open"])); out.push(mk(id++, `FEC-5.ZN${z}SLABT-SP`, "FEC-5", "analog", "degrees-fahrenheit", 70)); }
+  out.push(mk(id++, "FEC-5.VLV-CTRL", "FEC-5", "multistate", null, 3, 0, ["Off", "Max", "Control"]), mk(id++, "FEC-5.HTGOATLOCKOUT-SP", "FEC-5", "analog", "degrees-fahrenheit", 60), mk(id++, "FEC-5.SYSTEM-EN", "FEC-5", "binary", null, 1, 0, ["False", "True"]));
+  out.push(mk(id++, "FEC-10.CUH1-HTG-O", "FEC-10", "analog", "percent", 100), mk(id++, "FEC-10.CUH1-SF-S", "FEC-10", "binary", null, 1, 0, ["Off", "On"]), mk(id++, "FEC-10.CUH2-HTG-O", "FEC-10", "analog", "percent", 0), mk(id++, "FEC-10.CUH2-SF-S", "FEC-10", "binary", null, 0, 0, ["Off", "On"]), mk(id++, "FEC-10.ZNT-SP", "FEC-10", "analog", "degrees-fahrenheit", 70));
+  for (const [n, v, u] of [["BLRSP-O", 124.8, "degrees-fahrenheit"], ["HW-DP", 5.0, "pounds-force-per-square-inch"], ["HWDP-SP", 5, "pounds-force-per-square-inch"], ["CP2-S", 1, null], ["CP2-C", 1, null], ["CP2-O", 97, "percent"], ["CP1-S", 0, null], ["CP1-C", 0, null], ["BLR-EN", 1, null], ["OA-T", 30.5, "degrees-fahrenheit"]])
+    out.push(mk(id++, `Local Application.${n}`, "Local Application", u ? "analog" : "binary", u, v, 0, u ? null : ["Off", "On"]));
+  for (const [n, v] of [["EF1-S", 1], ["EF1-C", 1], ["EF2-S", 0], ["EF2-C", 0], ["EF3-S", 0], ["EF3-C", 1], ["RCP1-S", 1], ["RCP1-C", 1], ["RCP2-S", 0], ["RCP2-C", 0]]) out.push(mk(id++, `FEC-9.${n}`, "FEC-9", "binary", null, v, 0, ["Off", "On"]));
+  for (const n of ["EF1", "EF2", "EF3", "RCP1", "RCP2"]) out.push(mk(id++, `FEC-9.${n}-OCC-SCHEDULE`, "FEC-9", "multistate", null, n === "EF2" ? 2 : 1, 0, ["Occupied", "UnOccupied", "Standby", "Not Set"]));
   return out;
 }
 function demoExtras() {
