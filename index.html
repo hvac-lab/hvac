@@ -385,7 +385,8 @@ function renderStatus() {
   if (!s || !s.last_seen) { setStatus("warn", "poller: no data yet"); return; }
   const d = new Date(s.last_seen); const min = (Date.now() - d) / 60000;
   const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s/g, "").toLowerCase();
-  setStatus(min <= 5 ? "ok" : min <= 30 ? "warn" : "bad", `updated ${ago(s.last_seen)} (${t} - ${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()})${s.points_err ? `, ${s.points_err} read errors` : ""}`);
+  // "updated just now (11/5/2026 - 10:05pm)" (Russ, 2026-11-05)
+  setStatus(min <= 5 ? "ok" : min <= 30 ? "warn" : "bad", `updated ${ago(s.last_seen)} (${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} - ${t})${s.points_err ? `, ${s.points_err} read errors` : ""}`);
 }
 
 // ------------------------------------------------------------------ tabs
