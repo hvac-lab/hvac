@@ -66,7 +66,8 @@
   .ahu h3 { margin: 0; font-size: 15px; } .ahu .where { font-size: 12px; color: var(--muted); margin-bottom: 8px; min-height: 16px; }
   .ahu .big { font-size: 34px; font-weight: 650; line-height: 1.1; } .ahu .big small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 4px; }
   .ahu .row { display:flex; justify-content: space-between; gap: 8px; font-size: 14px; padding: 3px 0; border-top: 1px solid var(--grid); }
-  .ahu .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .ahu .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
+  .ahu .row.bad { background: rgba(208,59,59,.10); margin: 0 -16px; padding-left: 16px; padding-right: 16px; } .ahu .row.bad span:last-child { color: var(--critical); }
   .ahu .foot { font-size: 11px; color: var(--muted); margin-top: 6px; display:flex; gap: 6px; flex-wrap: wrap; }
   .badge { font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); white-space: nowrap; }
   .badge.ovr { border-color: var(--warning); } .badge.unr, .badge.err, .badge.critical { border-color: var(--critical); color: var(--critical); }
@@ -372,6 +373,12 @@ async function loadExtras() {
     state.sb.from("hvac_commands").select("*").order("id", { ascending: false }).limit(12)]);
   state.alerts = a.data || []; state.rules = r.data || []; state.cmds = c.data || [];
 }
+// the Temperature tab only needs the alerts that are still active (for the supply fan flag on the AHU cards)
+async function loadActiveAlerts() {
+  if (demo) { await loadExtras(); return; }
+  const { data } = await state.sb.from("hvac_alert_events").select("*").is("cleared_at", null).order("ts", { ascending: false }).limit(20);
+  state.alerts = data || [];
+}
 // table: normally the range's own (1-minute values for 24 h); the AHU chart passes the 15-minute rollup for 24 h too
 async function loadSeries(ids, rangeKey, table) {
   const r = RANGES[rangeKey]; table = table || r.table; const since = new Date(Date.now() - r.sec * 1000).toISOString();
@@ -484,7 +491,23 @@ function renderTab() {
 // ------------------------------------------------------------------ Temperature tab
 function ahuPoints(a) {
   return { zone: pt(`${a.fec}.ZN-T`), discharge: pt(`${a.fec}.DA-T`), setpoint: pt(`${a.fec}.ZNT-SP`), fan: pt(`${a.fec}.SF-S`), state: pt(`${a.fec}.AHU-STATE`), outdoor: pt(`${a.fec}.OA-T`),
-           humidity: pt(`${a.fec}.RA-H`) };   // RA-H: humidity of the air coming back from the rooms, measured in the unit's return duct
+           humidity: pt(`${a.fec}.RA-H`),   // RA-H: humidity of the air coming back from the rooms, measured in the unit's return duct
+           fanCmd: pt(`${a.fec}.SF-C`), fanAlarm: pt(`${a.fec}.SF-A`), fanOut: pt(`${a.fec}.SF-O`) };   // supply fan command, VFD alarm, output %
+}
+// Supply fan problems for the AHU card (Russ, 2026-11-06: "if the supply fan has an alert or an issue, flag that").
+// Returns badges: VFD alarm, status not matching the command, bad sensor flags on the status point, and any active
+// alert event that names one of the fan points.
+function fanProblems(a, p) {
+  const out = []; const on = (q) => q && q.last_value != null && Number(q.last_value) === 1;
+  if (on(p.fanAlarm)) out.push(el("span", { class: "badge err" }, "VFD alarm"));
+  if (p.fan && p.fanCmd && p.fan.last_value != null && p.fanCmd.last_value != null) {
+    if (on(p.fanCmd) && !on(p.fan)) out.push(el("span", { class: "badge err" }, "commanded on, not running"));
+    else if (!on(p.fanCmd) && on(p.fan)) out.push(el("span", { class: "badge alm" }, "running while commanded off"));
+  }
+  if (p.fan) out.push(...badges(p.fan.last_flags & ~FLAG.overridden));
+  const re = new RegExp(`\\b${a.fec}\\.SF-[ACOS]\\b`);
+  if (state.alerts.some(x => !x.cleared_at && re.test(x.message || ""))) out.push(el("span", { class: "badge critical" }, "alert"));
+  return out;
 }
 function renderTemperature() {
   const cards = el("div", { class: "ahus", id: "ahuCards" });
@@ -583,7 +606,8 @@ function renderAhuCards() {
       el("div", { class: "row" }, el("span", {}, "Discharge air"), el("span", {}, val(p.discharge) + " °F")),
       p.humidity ? el("div", { class: "row" }, el("span", {}, "Humidity (return air)"), el("span", {}, val(p.humidity) + " % ", rhAbbr(false))) : null,
       el("div", { class: "row" }, el("span", {}, "Setpoint"), el("span", {}, val(p.setpoint) + " °F", ...(p.setpoint ? badges(p.setpoint.last_flags) : []))),
-      el("div", { class: "row" }, el("span", {}, "Supply fan"), el("span", {}, p.fan ? (fanOn ? "On" : "Off") : "–")),
+      (() => { const probs = fanProblems(a, p); const out = p.fanOut && p.fanOut.last_value != null && fanOn ? ` (${Number(p.fanOut.last_value).toFixed(0)} %)` : "";
+        return el("div", { class: "row" + (probs.length ? " bad" : "") }, el("span", {}, "Supply fan"), el("span", {}, p.fan ? (fanOn ? "On" : "Off") + out : "–", ...probs)); })(),
       p.state ? el("div", { class: "row" }, el("span", {}, "State"), el("span", {}, val(p.state))) : null,
       el("div", { class: "foot" }, p.zone ? ago(p.zone.last_ts) : "no data", ...(p.zone ? badges(p.zone.last_flags) : []))));
   });
@@ -593,7 +617,7 @@ async function refreshTemperature() {
   const holder = $("#tempChart"); if (!holder) return;
   holder.classList.add("dim");
   try {
-    await Promise.all([loadStatus(), demo ? null : loadPoints()]);
+    await Promise.all([loadStatus(), loadActiveAlerts(), demo ? null : loadPoints()]);
     renderStatus(); renderAhuCards(); renderBoilers();
     const series = [];
     AHUS.forEach((a, i) => {
@@ -991,7 +1015,7 @@ function renderDetails() {
 }
 function section(key, title, openByDefault, ...body) {
   const d = el("details", { class: "sec" }, el("summary", {}, title), el("div", { class: "body" }, ...body));
-  const sk = key.startsWith("grp.") ? key : "sec." + key;   // equipment groups keep the storage key they always had
+  const sk = key.startsWith("grp") ? key : "sec." + key;   // equipment groups carry their own storage key (grp2.<g>)
   d.open = store.get(sk, openByDefault);
   d.addEventListener("toggle", () => store.set(sk, d.open));
   return d;
@@ -1022,7 +1046,9 @@ function buildTiles() {
     }
     const grid = el("table", { class: "vals" }, el("thead", {}, el("tr", {}, el("th", {}, "Item"), el("th", { class: "desc" }, "Description"), el("th", { class: "num" }, "Value"), el("th", {}, "Updated"), el("th", {}, ""))), tb);
     sortable(grid, "vals." + g);
-    const d = section("grp." + g, GROUPS[g] || g || "(other)", /^FEC-[678]$/.test(String(g)), grid);
+    // Russ, 2026-11-06: every equipment group starts collapsed (only Alerts is open); after that the page remembers what the
+    // user left open. The key moved from grp.<g> to grp2.<g> so the new default applies to everyone once.
+    const d = section("grp2." + g, GROUPS[g] || g || "(other)", false, grid);
     d.querySelector("summary").append(el("span", { class: "hint" }, `${pts.length} points`));
     box.append(d);
   }
@@ -1151,6 +1177,10 @@ function demoPoints() {
     out.push(mk(id++, `${fec}.DA-T`, fec, "analog", "degrees-fahrenheit", da));
     out.push(mk(id++, `${fec}.ZNT-SP`, fec, "analog", "degrees-fahrenheit", 70, i === 0 ? 4 : 0, null, { min: 60, max: 80, priority: 8, label: "Zone setpoint" }));
     out.push(mk(id++, `${fec}.SF-S`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]));
+    // demo fan problems: AHU-1 commanded on but not running, AHU-3 VFD alarm, AHU-2 fine at 85 %
+    out.push(mk(id++, `${fec}.SF-C`, fec, "binary", null, i <= 1 ? 1 : 0, 0, ["Off", "On"]));
+    out.push(mk(id++, `${fec}.SF-A`, fec, "binary", null, i === 2 ? 1 : 0, 0, ["Normal", "Alarm"]));
+    out.push(mk(id++, `${fec}.SF-O`, fec, "analog", "percent", i === 1 ? 85 : 0));
     out.push(mk(id++, `${fec}.AHU-STATE`, fec, "multistate", null, 7 + i, 0, states));
     out.push(mk(id++, `${fec}.ZN-TOCC`, fec, "binary", null, 0, 0, ["Inactive", "Active"], { values: [0, 1], priority: 8, label: "Temporary occupancy" }));
     out.push(mk(id++, `${fec}.OCC-SCHEDULE`, fec, "multistate", null, 2, 0, ["Occupied", "UnOccupied", "Standby", "Not Set"]));
