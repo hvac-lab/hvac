@@ -101,11 +101,13 @@
   .map img { display: block; max-width: 100%; max-height: calc(100vh - 150px); width: auto; height: auto; }
   .spot { position: absolute; transform: translate(-50%, -50%); background: var(--surface); border: 3px solid var(--sc, var(--s1)); border-radius: 16px; padding: 8px 18px; font-size: 28px; font-weight: 650; white-space: nowrap; box-shadow: 0 3px 12px rgba(0,0,0,.25); line-height: 1.15; text-align: center; }
   .spot small { display:block; font-size: 14px; font-weight: 400; color: var(--muted); }
-  .spot.sm { font-size: 15px; padding: 2px 7px; border-radius: 8px; border-width: 2px; border-style: dashed; box-shadow: 0 1px 4px rgba(0,0,0,.2); } .spot.sm small { font-size: 9px; }
+  .spot.sm { font-size: 15px; padding: 2px 7px; border-radius: 8px; border-width: 2px; border-style: solid; box-shadow: 0 1px 4px rgba(0,0,0,.2); } .spot.sm small { font-size: 9px; }   /* solid purple frame (Russ, 2026-11-06) */
   /* The floor plan is laid out at the picture's own size (1219 px, boxes included) and then the whole thing is scaled
      down to the screen width (fitMap), so a phone sees the entire plan at once and pinches in to read a box; the boxes
      shrink with the picture and never pile up (Russ, 2026-11-05/06). .mapfit clips the unscaled layout box. */
-  .mapfit { overflow: hidden; }
+  .mapfit { overflow: hidden; position: relative; touch-action: pan-y; }   /* pan-y: the page still scrolls over the plan; a two-finger pinch reaches mapGestures */
+  .mapfit.zoomed { touch-action: none; cursor: grab; }
+  .mapfit .mapreset { position: absolute; right: 8px; top: 8px; z-index: 2; }
   /* Boiler room drawing: pipes with moving dashes where water is being pumped */
   .broom svg { max-width: 1100px; margin: 0 auto; }
   .ahusvg svg, .loopsvg svg, .fansvg svg { max-width: 1100px; margin: 0 auto; }
@@ -209,19 +211,21 @@ const MAP = {
     { label: "Sound Room (FCU-1)", point: "FEC-9.FCU1-ZN-T", x: 54, y: 88, sm: true },
     { label: "Vestibule (CUH-1/2)", point: "FEC-10.ZN-T", x: 7, y: 76, sm: true },
     // In-floor slab zones. x/y = where the box sits (the floor area the zone heats, judged from the tubing on hydronic
-    // plan M3.2); sx/sy = the S1 slab sensor beside manifold MAN-N (from the plan, mapped through shared room labels).
+    // plan M3.2); sx/sy = the S1 slab sensor beside manifold MAN-N. Re-measured 2026-11-06 evening from the plan set:
+    // sheet M3.2's S1 text marks -> sheet A1.3 (room-number labels, least squares) -> this picture (linework
+    // correlation, room labels land within 3 px); the earlier values were within ~1 % except zones 9 and 11 (~2 %).
     // Assumes slab zone N = manifold MAN-N. A line is drawn from each box to its sensor.
-    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 79.1, sy: 63.0, sm: true },
-    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 88.1, sy: 64.4, sm: true },
-    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 88, sx: 78.3, sy: 85.4, sm: true },
-    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.9, sy: 86.0, sm: true },
-    { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 14, y: 67, sx: 8.5, sy: 61.1, sm: true },  // right of the vestibule (Russ, 2026-11-05)
-    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 21.6, sy: 63.0, sm: true },
-    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 23.0, sy: 53.6, sm: true },
-    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 32.8, sy: 52.1, sm: true },  // dining room (Russ, 2026-11-05)
-    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 31, y: 68, sx: 33.5, sy: 58.5, sm: true },   // just left of the Fellowship Area box (Russ, 2026-11-06)
-    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 56.1, sy: 64.3, sm: true },
-    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 52.8, sy: 16.0, sm: true },
+    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 78.5, sy: 61.8, sm: true },
+    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 87.5, sy: 63.2, sm: true },
+    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 88, sx: 78.3, sy: 84.2, sm: true },
+    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.8, sy: 85.1, sm: true },
+    { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 14, y: 67, sx: 7.7, sy: 60.3, sm: true },  // right of the vestibule (Russ, 2026-11-05)
+    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 20.8, sy: 62.1, sm: true },
+    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 21.9, sy: 52.7, sm: true },
+    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 31.7, sy: 51.2, sm: true },  // dining room (Russ, 2026-11-05)
+    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 31, y: 68, sx: 34.5, sy: 60.9, sm: true },   // just left of the Fellowship Area box (Russ, 2026-11-06)
+    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 55.4, sy: 63.2, sm: true },
+    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 50.7, sy: 15.0, sm: true },
   ],
 };
 
@@ -244,7 +248,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["boiler", "Boiler room"], ["loop", "Heating loop"], ["ahu", "Air handlers"], ["fans", "Exhaust fans"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only; the drawings beside the floor plan)
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -750,26 +754,67 @@ async function imageUrl(name) {
 // ------------------------------------------------------------------ Map tab
 function renderMap() {
   const box = el("div", { class: "map full", id: "mapBox" });
-  const img = el("img", { alt: "Building floor plan" });
+  const img = el("img", { alt: "Building floor plan", draggable: "false" });
   const coords = el("div", { class: "coords" }, "move the pointer over the picture for x / y");
-  const note = el("div", { class: "card hint" }, "Room temperatures (big) and in-floor slab temperatures (small, dashed, placed from the hydronic plan's S1 sensor marks) drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot. Pinch to zoom on a phone.");
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
     `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
-  // laid out at the picture's own size, then scaled to fit the screen (fitMap): a phone sees the whole plan and pinches in
+  // laid out at MAP.width, then scaled to fit the screen (fitMap); the plan zooms inside its own frame (mapGestures)
   img.onload = () => { box.style.minWidth = (MAP.width || img.naturalWidth) + "px"; fitMap(); drawSpots(); };
   imageUrl(MAP.image).then(u => { img.src = u; });
   box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
   box.append(img, coords);
-  screen(note, el("div", { class: "mapfit" }, box));
+  const wrap = el("div", { class: "mapfit" }, box);
+  state.mapView = { z: 1, tx: 0, ty: 0, k: 1 };
+  mapGestures(wrap, box);
+  screen(wrap);
   refreshMap();
 }
-// Scale the plan (boxes included) down to the width available, so the whole picture is on the screen at once; the
-// user pinches in to read (Russ, 2026-11-06). Transforms do not take part in layout, so the wrapper gets the scaled height.
+// Scale the plan (boxes included) down to the width available, so the whole picture is on the screen at once (Russ,
+// 2026-11-06). Transforms do not take part in layout, so the wrapper gets the scaled height. Zooming happens inside the
+// frame (Russ, 2026-11-06 evening: the browser's own pinch zoom stopped too early and the lines and dots looked bad):
+// the box is translated and scaled as a whole, so the picture, the boxes, the lines and the dots all grow together.
 function fitMap() {
   const box = $("#mapBox"); const wrap = box && box.parentElement; if (!box || !wrap) return;
-  const k = Math.min(1, wrap.clientWidth / box.offsetWidth);
-  box.style.transformOrigin = "0 0"; box.style.transform = k < 1 ? `scale(${k})` : "";
-  wrap.style.height = k < 1 ? Math.round(box.offsetHeight * k) + "px" : "";
+  const v = state.mapView || (state.mapView = { z: 1, tx: 0, ty: 0, k: 1 });
+  v.k = Math.min(1, wrap.clientWidth / box.offsetWidth);
+  wrap.style.height = Math.round(box.offsetHeight * v.k) + "px";
+  setMapView(v.z, v.tx, v.ty);
+}
+function setMapView(z, tx, ty) {
+  const box = $("#mapBox"); const wrap = box && box.parentElement; if (!box || !wrap) return;
+  const v = state.mapView; v.z = Math.max(1, Math.min(8, z));
+  const s = v.k * v.z, cw = box.offsetWidth * s, ch = box.offsetHeight * s;
+  v.tx = v.z === 1 ? 0 : Math.min(0, Math.max(wrap.clientWidth - cw, tx));
+  v.ty = v.z === 1 ? 0 : Math.min(0, Math.max(wrap.clientHeight - ch, ty));
+  box.style.transformOrigin = "0 0"; box.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${s})`;
+  wrap.classList.toggle("zoomed", v.z > 1);
+  const r = wrap.querySelector(".mapreset"); if (r) r.style.display = v.z > 1 ? "" : "none";
+}
+// pinch to zoom (two pointers), drag to move while zoomed, double-tap / double-click to zoom in or back out,
+// ctrl+wheel on a desktop; a "fit" button comes up while zoomed. Up to 8x on top of the fit scale.
+function mapGestures(wrap, box) {
+  const pts = new Map(); let last = null;
+  wrap.append(el("button", { class: "small mapreset", style: "display:none", onclick: () => setMapView(1, 0, 0) }, "fit to screen"));
+  const pos = (e) => { const r = wrap.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const zoomAt = (p, z) => { const v = state.mapView; const s = v.k * v.z; const nz = Math.max(1, Math.min(8, z)); const ns = v.k * nz;
+    setMapView(nz, p.x - (p.x - v.tx) / s * ns, p.y - (p.y - v.ty) / s * ns); };
+  wrap.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; pts.set(e.pointerId, pos(e)); try { wrap.setPointerCapture(e.pointerId); } catch {} last = null; if (state.mapView.z > 1 || pts.size > 1) e.preventDefault(); });
+  wrap.addEventListener("pointermove", (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, pos(e)); const v = state.mapView; const P = [...pts.values()];
+    if (P.length >= 2) {
+      const d = Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y), m = { x: (P[0].x + P[1].x) / 2, y: (P[0].y + P[1].y) / 2 };
+      if (last && last.d) { zoomAt(m, v.z * d / last.d); const w = state.mapView; setMapView(w.z, w.tx + m.x - last.mx, w.ty + m.y - last.my); }
+      last = { d, mx: m.x, my: m.y };
+    } else {
+      const p = P[0]; if (last && last.x != null && v.z > 1) setMapView(v.z, v.tx + p.x - last.x, v.ty + p.y - last.y);
+      last = { x: p.x, y: p.y };
+    }
+  });
+  const up = (e) => { pts.delete(e.pointerId); last = null; };
+  wrap.addEventListener("pointerup", up); wrap.addEventListener("pointercancel", up); wrap.addEventListener("lostpointercapture", up);
+  wrap.addEventListener("dblclick", (e) => { if (e.target.closest("button")) return; zoomAt(pos(e), state.mapView.z > 1 ? 1 : 3); });
+  wrap.addEventListener("wheel", (e) => { if (!e.ctrlKey && state.mapView.z === 1) return; e.preventDefault(); zoomAt(pos(e), state.mapView.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }, { passive: false });
 }
 // "RH" with a hover explanation (Russ, 2026-11-06: "it should tell me what RH means")
 function rhAbbr(outdoor) {
@@ -798,25 +843,27 @@ function drawSpots() {
       sEl.style.marginTop = (parseFloat(sEl.style.marginTop || "0") + (up <= down ? -up : down) / k) + "px";
     }
   }
-  // a line from the edge of each floor box to the slab sensor it reads, with a dot at the sensor
-  const br = box.getBoundingClientRect();
-  if (!br.width) return;
+  // a line from the edge of each floor box to the slab sensor it reads, with a dot at the sensor. Everything is in the
+  // box's own layout pixels (offsetLeft/Top are the box centre: the boxes sit at left/top with translate(-50%,-50%)),
+  // so the line widths and dots scale with the picture exactly like the walls do, at any zoom (Russ, 2026-11-06).
+  const L = box.offsetWidth, T = box.offsetHeight;
+  if (!L) return;
   const NS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "spot-lines"); svg.setAttribute("viewBox", `0 0 ${br.width} ${br.height}`);
+  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "spot-lines"); svg.setAttribute("viewBox", `0 0 ${L} ${T}`);
   const lineColor = css("--s7");
   for (const sEl of box.querySelectorAll(".spot.sm")) {
     const s = MAP.spots[Number(sEl.dataset.i)]; if (s.sx == null) continue;
-    const r = sEl.getBoundingClientRect();
-    const cx = r.left + r.width / 2 - br.left, cy = r.top + r.height / 2 - br.top, x2 = s.sx / 100 * br.width, y2 = s.sy / 100 * br.height;
+    const cx = sEl.offsetLeft, cy = sEl.offsetTop, hw = sEl.offsetWidth / 2, hh = sEl.offsetHeight / 2;
+    const x2 = s.sx / 100 * L, y2 = s.sy / 100 * T;
     const dx = x2 - cx, dy = y2 - cy;
-    // start where the centre-to-sensor direction leaves the box (plus a small gap), so the line never crosses the number
-    const t = Math.min(dx ? (r.width / 2 + 3) / Math.abs(dx) : Infinity, dy ? (r.height / 2 + 3) / Math.abs(dy) : Infinity);
+    // start right where the centre-to-sensor direction leaves the box, so the line touches the frame
+    const t = Math.min(dx ? (hw + 0.5) / Math.abs(dx) : Infinity, dy ? (hh + 0.5) / Math.abs(dy) : Infinity);
     if (!(t < 1)) continue;   // the sensor lies under the box: nothing to draw
     const x1 = cx + dx * t, y1 = cy + dy * t;
     const line = document.createElementNS(NS, "line");
-    for (const [k, v] of Object.entries({ x1, y1, x2, y2, stroke: lineColor, "stroke-width": 2.5, opacity: .9 })) line.setAttribute(k, v);   // solid (Russ, 2026-11-05)
+    for (const [k, v] of Object.entries({ x1, y1, x2, y2, stroke: lineColor, "stroke-width": 2, opacity: .95 })) line.setAttribute(k, v);   // solid (Russ, 2026-11-05)
     const dot = document.createElementNS(NS, "circle");
-    for (const [k, v] of Object.entries({ cx: x2, cy: y2, r: 5, fill: lineColor, stroke: "#fff", "stroke-width": 1.5 })) dot.setAttribute(k, v);
+    for (const [k, v] of Object.entries({ cx: x2, cy: y2, r: 3.5, fill: lineColor, stroke: "#fff", "stroke-width": 1 })) dot.setAttribute(k, v);
     svg.append(line, dot);
   }
   box.append(svg);
@@ -843,10 +890,8 @@ const BR = {   // the hot-water loop points by role (group "Local Application")
           { name: "CP-2", s: "Local Application.CP2-S", c: "Local Application.CP2-C", o: "Local Application.CP2-O", a: "Local Application.CP2-A", lo: "Local Application.CP2-LO-A", rt: "Local Application.CP2-RUNTIME" }],
 };
 function renderBoilerRoom() {
-  screen(el("div", { class: "card hint" }, "The boiler room as drawn on sheet M3.1 of the 2013 plan set (detail 2, boiler piping schematic), with the logger's live values on the parts the engine measures: ",
-      "boiler status, outlet temperature and fire rate from the AERCO units; pump status, speed and VFD alarms; the supply and return water temperatures, the setpoint and the loop pressure. ",
-      "Red = supply, blue = return; the moving dashes show where water is being pumped. Refreshes every minute. Pinch to zoom on a phone."),
-    el("div", { class: "card", style: "padding:6px" }, el("div", { id: "boilerRoom", class: "broom" }, "Loading…")));
+  // no explanatory note above the drawings any more (Russ, 2026-11-06 evening: "remove the notes at the top in each tab")
+  screen(el("div", { class: "card", style: "padding:6px" }, el("div", { id: "boilerRoom", class: "broom" }, "Loading…")));
   refreshBoilerRoom();
 }
 async function refreshBoilerRoom() {
@@ -990,11 +1035,7 @@ const AHU_EXTRA = { "AHU-1": { valve: "3-way valve" }, "AHU-2": { valve: "2-way 
 function renderAhus() {
   const cards = AHUS.map((a, i) => el("div", { class: "card", style: `padding:6px 6px 2px;border-top:5px solid ${css(SERIES[i])};border-radius:18px` },
     el("div", { id: "ahu-" + a.key, class: "ahusvg" }, "Loading…")));
-  screen(el("div", { class: "card hint" }, "Each air handler as drawn on sheet M2.1 of the 2013 plan set (section views): the return fan pulls air back from the rooms and either ",
-      "sends it out of the exhaust louver or mixes it with outdoor air from the intake louver; the mix passes the filter, the hot-water heating coil (fed by the boilers), ",
-      "the DX cooling coil (its condensing unit sits outside) and the supply fan on its way back to the rooms. Dampers are drawn at the angle the engine commands; ",
-      "moving dashes show where air is being moved; red and blue coils are working. Refreshes every minute. Pinch to zoom on a phone."),
-    ...cards);
+  screen(...cards);
   refreshAhus();
 }
 async function refreshAhus() {
@@ -1021,7 +1062,11 @@ function ahuSvg(a) {
   // a duct: wide grey band, with a thin moving line in it while the fan that moves this air is running
   // moving air is a light-blue dashed line (Russ, 2026-11-06); every duct path is written in the direction the air goes
   const airColor = "#5fb8ff";
-  const duct = (d, flowing) => `<path d="${d}" fill="none" stroke="${ductColor}" stroke-width="16" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${airColor}" stroke-width="3" stroke-linejoin="round" class="pipe flow"/>` : "");
+  // Russ, 2026-11-06 evening: outdoor air blue up to the mixing box, mixed air purple from there to the coils, red after
+  // the heating coil and all the way round the return back into the mixing box while heating, blue when cooling or idle;
+  // the dashes (and the fans) move at a speed that follows the fan's output: 100 % fast, 15 % slow.
+  const spd = (pct) => (1.2 * 50 / Math.max(10, Math.min(100, pct == null ? 50 : pct))).toFixed(2);
+  const duct = (d, flowing, color = airColor, speed = "1.2") => `<path d="${d}" fill="none" stroke="${ductColor}" stroke-width="16" stroke-linejoin="round"/>` + (flowing ? `<path d="${d}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" class="pipe flow" style="animation-duration:${speed}s"/>` : "");
   const arrow = (x, y, dir, color = ink2) => { const s = 6; const pts = dir === "r" ? `${x - s},${y - s} ${x + s},${y} ${x - s},${y + s}` : dir === "l" ? `${x + s},${y - s} ${x - s},${y} ${x + s},${y + s}` : dir === "d" ? `${x - s},${y - s} ${x},${y + s} ${x + s},${y - s}` : `${x - s},${y + s} ${x},${y - s} ${x + s},${y + s}`; return `<polygon points="${pts}" fill="${color}"/>`; };
   // damper: a frame in the duct with one blade turned to the commanded opening (0 % = across the duct, 100 % = along it);
   // coloured by opening (Russ, 2026-11-06): closed = red, under 25 % = yellow, 25 % and more = green, no point = grey
@@ -1035,15 +1080,18 @@ function ahuSvg(a) {
     const wave = (wx) => up ? `M ${wx} ${y + 20} q 4 -5 0 -10 t 0 -10 t 0 -10 t 0 -10` : `M ${wx} ${y - 20} q 4 5 0 10 t 0 10 t 0 10 t 0 10`;
     const w = working ? `<path d="${wave(x - 5)}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" class="pipe flow"/><path d="${wave(x + 5)}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" class="pipe flow"/>` : "";
     return `<rect x="${x - 11}" y="${y - 22}" width="22" height="44" fill="${working ? color : surface}" fill-opacity="${working ? .25 : 1}" stroke="${working ? color : ink2}" stroke-width="${working ? 2.4 : 1.4}"/>` + h + w; };
-  // fan: three blades that turn while the fan runs (SMIL animateTransform, works on phones too)
-  const fan = (x, y, run, alarm, big = 17) => { const stroke = alarm ? bad : run ? good : grid; const blade = `<path d="M ${x} ${y} l 10 -12 a ${big} ${big} 0 0 1 2 20 z" fill="${stroke}" opacity=".8"/>`;
-    return `<circle cx="${x}" cy="${y}" r="${big}" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><g>${run ? `<animateTransform attributeName="transform" type="rotate" from="0 ${x} ${y}" to="360 ${x} ${y}" dur="0.9s" repeatCount="indefinite"/>` : ""}${blade}<g transform="rotate(120 ${x} ${y})">${blade}</g><g transform="rotate(240 ${x} ${y})">${blade}</g></g><circle cx="${x}" cy="${y}" r="2.5" fill="${ink2}"/>`; };
+  // fan: three blades that turn while the fan runs (SMIL animateTransform, works on phones too); the return fan turns the
+  // other way (ccw) and the speed follows the VFD output (Russ, 2026-11-06 evening)
+  const fan = (x, y, run, alarm, big = 17, ccw = false, pct = null) => { const stroke = alarm ? bad : run ? good : grid; const blade = `<path d="M ${x} ${y} l 10 -12 a ${big} ${big} 0 0 1 2 20 z" fill="${stroke}" opacity=".8"/>`;
+    const dur = (0.9 * 50 / Math.max(10, Math.min(100, pct == null ? 50 : pct))).toFixed(2);
+    return `<circle cx="${x}" cy="${y}" r="${big}" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><g>${run ? `<animateTransform attributeName="transform" type="rotate" from="${ccw ? 360 : 0} ${x} ${y}" to="${ccw ? 0 : 360} ${x} ${y}" dur="${dur}s" repeatCount="indefinite"/>` : ""}${blade}<g transform="rotate(120 ${x} ${y})">${blade}</g><g transform="rotate(240 ${x} ${y})">${blade}</g></g><circle cx="${x}" cy="${y}" r="2.5" fill="${ink2}"/>`; };
   const sd = (x, y, alarm) => `<rect x="${x - 7}" y="${y - 7}" width="14" height="14" rx="3" fill="${alarm ? bad : surface}" stroke="${alarm ? bad : ink2}" stroke-width="1.3"/>` + label(x, y + 3, "SD", "middle", 7, alarm ? "#fff" : ink2, 700);
   const louver = (x, y, text) => { let s = `<rect x="${x - 10}" y="${y - 22}" width="20" height="44" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>`; for (let i = -16; i <= 16; i += 8) s += `<line x1="${x - 8}" y1="${y + i - 3}" x2="${x + 8}" y2="${y + i + 3}" stroke="${ink2}" stroke-width="1.4"/>`; return s + label(x, y + 34, text, "middle", 8) + label(x, y + 43, "on the outside wall", "middle", 7); };
   const i = AHUS.indexOf(a); const extra = AHU_EXTRA[a.key] || {};
   const htg = val("HTG-O") || 0, clg1 = on("CLG1-C"), clg2 = on("CLG2-C");
   const sfAlarm = on("SF-A"), rfAlarm = on("RF-A"), lt = on("LT-A"), daSd = on("DA-SD"), raSd = on("RA-SD");
   const sfCmd = val("SF-C"), rfCmd = val("RF-C");
+  const heating = htg > 0, purple = css("--s7"), supColor = heating ? red : airColor, retColor = supColor, sfSpd = spd(val("SF-O")), rfSpd = spd(val("RF-O"));
   const re = new RegExp(`\\b${a.fec}\\.`); const alert = state.alerts.find(x => !x.cleared_at && re.test(x.message || ""));
   const SY = 290, RY = 135, EY = 70;   // supply duct, return duct and exhaust run centre lines (the title and state line sit above the exhaust run)
   let s = "";
@@ -1066,12 +1114,12 @@ function ahuSvg(a) {
   if (extra.dehum) { const rh = pt(extra.dehum + "RH Setpoint"), ds = pt(extra.dehum + "Dehumid Schedule");
     if (rh) s += label(927, 300, `dehumidify ${ds && Number(ds.last_value) === 1 ? "ON" : "off"} · RH setpoint ${Number(rh.last_value).toFixed(0)} %`, "middle", 7.5, ds && Number(ds.last_value) === 1 ? blue : muted, 600); }
   // --- return side (top): rooms -> RA sensors -> smoke detector -> return fan -> tee: exhaust damper up to the louver, return damper down to the mixing box
-  s += duct(`M 868 ${RY} H 300`, rfOn) + duct(`M 420 ${RY} V ${EY} H 60`, rfOn && (val("EAD-O") || 0) > 0);
+  s += duct(`M 868 ${RY} H 300`, rfOn, retColor, rfSpd) + duct(`M 420 ${RY} V ${EY} H 60`, rfOn && (val("EAD-O") || 0) > 0, retColor, rfSpd);
   s += arrow(840, RY, "l") + arrow(690, RY, "l") + arrow(420, EY + 25, "u") + arrow(150, EY, "l");
   s += label(640, RY - 24, "RETURN AIR from the rooms", "middle", 9, ink2, 600);
   s += tag(785, RY, "T", `${num("RA-T", 1, " °F")}`, "r") + label(785, RY + 22, "return air (RA-T)", "middle", 8);
   s += sd(700, RY, raSd) + label(700, RY + 19, raSd ? "SMOKE ALARM" : "smoke detector", "middle", 7, raSd ? bad : muted, raSd ? 700 : 400);
-  s += fan(600, RY, rfOn, rfAlarm, 17);
+  s += fan(600, RY, rfOn, rfAlarm, 17, true, val("RF-O"));
   s += `<rect x="570" y="${RY - 48}" width="30" height="14" rx="3" fill="${rfAlarm ? bad : surface}" stroke="${rfAlarm ? bad : ink2}" stroke-width="1.3"/>` + label(585, RY - 38, "VFD", "middle", 8, rfAlarm ? "#fff" : ink2, 700);
   const rfTxt = !has("RF-S") ? "–" : rfOn ? `ON ${num("RF-O", 0, " %")}` : "off";
   s += label(600, RY + 32, "return fan", "middle", 9, ink2, 700) + label(600, RY + 44, rfTxt, "middle", 10, rfOn ? good : muted, 700);
@@ -1081,11 +1129,12 @@ function ahuSvg(a) {
   s += damper(360, RY, val("RAD-O"), false, "return damper", "");
   // --- mixing box joins the two rows
   s += `<rect x="283" y="${RY - 14}" width="34" height="${SY - RY + 28}" rx="4" fill="${surface}" stroke="${ink2}" stroke-width="1.6"/>`;
-  s += `<path d="M 300 ${RY + 14} V ${SY - 14}" stroke="${ductColor}" stroke-width="16"/>` + (rfOn && (val("RAD-O") || 0) > 0 ? `<path d="M 300 ${RY + 14} V ${SY - 14}" stroke="${ink2}" stroke-width="2" class="pipe flow"/>` : "");
+  s += duct(`M 300 ${RY + 14} V ${SY - 14}`, rfOn && (val("RAD-O") || 0) > 0, retColor, rfSpd);
   s += label(300, 206, "MIXING", "middle", 7.5, ink2, 700) + label(300, 215, "BOX", "middle", 7.5, ink2, 700);
   s += tag(300, 237, "T", num("MA-T", 1, " °F"), "r") + label(318, 252, "mixed air (MA-T)", "start", 8);
   // --- supply side (bottom): intake louver -> outdoor damper -> mixing box -> filter -> heating coil -> cooling coil -> supply fan -> DA sensor -> rooms
-  s += duct(`M 60 ${SY} H 300`, sfOn && (val("OAD-O") || 0) > 0) + duct(`M 300 ${SY} H 868`, sfOn);
+  s += duct(`M 60 ${SY} H 300`, sfOn && (val("OAD-O") || 0) > 0, airColor, sfSpd) + duct(`M 300 ${SY} H 443`, sfOn, purple, sfSpd)
+     + duct(`M 443 ${SY} H 553`, sfOn, heating ? red : purple, sfSpd) + duct(`M 553 ${SY} H 868`, sfOn, supColor, sfSpd);
   s += arrow(190, SY, "r") + arrow(620, SY, "r") + arrow(845, SY, "r");
   s += louver(60, SY, "intake louver");
   s += tag(60, SY - 58, "T", `${num("OA-T", 1, " °F")}`, "r") + label(77, SY - 41, `outdoor air (OA-T) · ${num("OA-H", 0, " %")} RH`, "start", 8);
@@ -1106,7 +1155,7 @@ function ahuSvg(a) {
   s += coil(553, SY, blue, clg) + label(553, SY + 36, "cooling coil", "middle", 9, clg ? blue : ink2, 700) + label(553, SY + 47, !has("CLG1-C") ? "–" : clg ? `stage ${clg2 ? "2" : "1"} ON` : "off", "middle", 8.5, clg ? blue : muted, 600);
   s += label(553, SY + 56, "DX · condensing unit outside", "middle", 7);
   // supply fan
-  s += fan(640, SY, sfOn, sfAlarm, 19);
+  s += fan(640, SY, sfOn, sfAlarm, 19, false, val("SF-O"));
   s += `<rect x="610" y="${SY - 54}" width="30" height="14" rx="3" fill="${sfAlarm ? bad : surface}" stroke="${sfAlarm ? bad : ink2}" stroke-width="1.3"/>` + label(625, SY - 44, "VFD", "middle", 8, sfAlarm ? "#fff" : ink2, 700);
   const sfTxt = !has("SF-S") ? "–" : sfOn ? `ON ${num("SF-O", 0, " %")}` : "off";
   s += label(640, SY + 36, "supply fan", "middle", 9, ink2, 700) + label(640, SY + 48, sfTxt, "middle", 10, sfOn ? good : muted, 700);
@@ -1168,10 +1217,7 @@ const LOOP = [
   { id: "CUH-1", kind: "cuh", n: 1, valve: "3-way", where: "Vestibule, cabinet heater", size: "3/4\"" }, { id: "CUH-2", kind: "cuh", n: 2, valve: "3-way", where: "Vestibule, cabinet heater", size: "3/4\"" },
 ];
 function renderLoop() {
-  screen(el("div", { class: "card hint" }, "Where the boiler water goes, drawn as a ladder after the hydronic isometric on sheet M3.1 (detail 4): supply on the left, return on the right, ",
-      "one rung per load in the order the pipe reaches them out of the boiler room: the three air-handler heating coils, the two cabinet heaters in the vestibule and the eleven ",
-      "in-floor manifolds. A rung lights up and moves when its valve is open and a pump is running; each manifold shows its slab temperature and setpoint. Refreshes every minute. Pinch to zoom on a phone."),
-    el("div", { class: "card", style: "padding:6px" }, el("div", { id: "loopRoom", class: "loopsvg" }, "Loading…")));
+  screen(el("div", { class: "card", style: "padding:6px" }, el("div", { id: "loopRoom", class: "loopsvg" }, "Loading…")));
   refreshLoop();
 }
 async function refreshLoop() {
@@ -1243,10 +1289,7 @@ const FANS = [
   { id: "EF-3", p: "EF3", where: "Kitchen & dishwasher hood", how: "on the roof · 16x16 duct · motorized damper", detail: "M2.2 / M5.2 details 6, 9" },
 ];
 function renderFans() {
-  screen(el("div", { class: "card hint" }, "The three exhaust fans, the two domestic hot-water recirculation pumps and the Sound Room fan coil, all on controller FEC-9. ",
-      "Each fan shows whether the engine is commanding it, whether it is actually running, and what its schedule says; moving light-blue dashes show air leaving the building. ",
-      "The plan set calls RCP-1 and RCP-2 recirculation pumps on the water heaters (plumbing sheets), not radiant panels. Refreshes every minute. Pinch to zoom on a phone."),
-    el("div", { class: "card", style: "padding:6px" }, el("div", { id: "fansRoom", class: "fansvg" }, "Loading…")));
+  screen(el("div", { class: "card", style: "padding:6px" }, el("div", { id: "fansRoom", class: "fansvg" }, "Loading…")));
   refreshFans();
 }
 async function refreshFans() {
@@ -1344,12 +1387,9 @@ async function refreshSchedule() {
     list.replaceChildren();
     // only the three air-handler schedules (Russ, 2026-11-05); the dehumidification, RCP and calendar objects stay in the data
     const scheds = state.scheds.filter(s => s.kind === "schedule" && /^AHU-\d Schedule$/.test(s.name)).sort((a, b) => a.name.localeCompare(b.name));
-    const note = $("#schedNote");
+    // the note only shows while there is nothing to draw (Russ, 2026-11-06 evening: no notes at the top of the tabs)
+    const note = $("#schedNote"); note.style.display = scheds.length ? "none" : "";
     if (!scheds.length) note.textContent = "No schedules yet: the poller reads them from the engine once an hour.";
-    else {
-      const latest = scheds.reduce((a, s) => (s.read_at > a ? s.read_at : a), "");
-      note.textContent = `Weekly schedules as programmed in the Johnson Controls engine (read ${ago(latest)}; checked again every hour). To change one, use Metasys: this page only shows them.`;
-    }
     const now = new Date(); const todayIdx = (now.getDay() + 6) % 7; const nowMin = now.getHours() * 60 + now.getMinutes();
     scheds.forEach((s, i) => {
       const color = schedColor(s, i); const d = s.data || {}; const weekly = d.weekly || [];
@@ -1377,6 +1417,13 @@ async function refreshSchedule() {
 }
 
 // ------------------------------------------------------------------ Audit Changes tab
+// Only the day lines that changed, old beside new ("Friday  00:00 UnOccupied" -> "Friday  00:00 UnOccupied, 04:00 Occupied, ...")
+function schedDiff(a, b) {
+  const A = String(a || "").split("\n").map(x => x.trim()), B = String(b || "").split("\n").map(x => x.trim());
+  const o = [], w = [];
+  for (let i = 0; i < Math.max(A.length, B.length); i++) if ((A[i] || "") !== (B[i] || "")) { o.push(A[i] || "–"); w.push(B[i] || "–"); }
+  return o.length ? [o.join("\n"), w.join("\n")] : [a, b];
+}
 async function loadChanges() {
   if (demo) return snap ? snap.hvac_changes : demoChanges();
   const { data, error } = await state.sb.from("hvac_changes").select("*").order("ts", { ascending: false }).limit(300);
@@ -1384,9 +1431,7 @@ async function loadChanges() {
   return data || [];
 }
 function renderAudit() {
-  screen(el("div", { class: "card hint" }, "Every setting change the logger notices, newest first: setpoints and temporary-occupancy buttons (every minute), operator overrides, and schedule edits (checked hourly). ",
-      "Changes made from this site carry the person's email; \"Metasys\" means it was changed at the Metasys screen, a thermostat, or by a program in the engine."),
-    el("div", { class: "card", id: "auditList" }, "Loading…"));
+  screen(el("div", { class: "card", id: "auditList" }, "Loading…"));
   refreshAudit();
 }
 async function refreshAudit() {
@@ -1412,9 +1457,11 @@ async function refreshAudit() {
         const where = sched ? equipmentOfName(c.point_name) : (p ? equipmentOf(p) : equipmentOf({ group_name: String(c.point_name || "").split(".")[0] }));
         const cell = (v) => sched ? el("pre", { style: "margin:0;font:12px/1.3 monospace;white-space:pre-wrap;text-align:left" }, v || "") : (v == null ? "–" : v + unit);
         const num = (v) => sched || v == null || isNaN(Number(v)) ? null : String(Number(v));
+        // a schedule edit is stored as the whole week before and after; show only the days that differ (Russ, 2026-11-06)
+        const [ov, nv] = sched ? schedDiff(c.old_value, c.new_value) : [c.old_value, c.new_value];
         b.append(el("tr", {}, el("td", { "data-sort": c.ts }, when(c.ts)), el("td", {}, el("span", { class: "badge " + (c.kind === "override" ? "ovr" : sched ? "" : "ok") }, what)),
           el("td", {}, c.point_name), el("td", {}, where), el("td", { class: "desc" }, desc),
-          el("td", { class: "ctr", "data-sort": num(c.old_value) }, cell(c.old_value)), el("td", { class: "ctr", "data-sort": num(c.new_value) }, cell(c.new_value)),
+          el("td", { class: "ctr", "data-sort": num(c.old_value) }, cell(ov)), el("td", { class: "ctr", "data-sort": num(c.new_value) }, cell(nv)),
           el("td", {}, by)));
       }
       t.append(b); box.append(el("div", { class: "tablewrap" }, t)); sortable(t, "audit");
@@ -1446,10 +1493,7 @@ async function adminCall(fn, args) {
   if (error) throw new Error(error.message);
 }
 function renderAdmin() {
-  screen(el("div", { class: "card hint" }, "Who may open this page. Anyone listed signs in with the Google account that uses that email address ",
-      "(or asks for an email link under \"Other ways to sign in\"). Admins see this tab and can add or remove people; ",
-      "everyone else sees the rest of the page only. Removing someone shuts them out the next time the page loads."),
-    el("div", { class: "card", id: "adminList" }, "Loading…"));
+  screen(el("div", { class: "card", id: "adminList" }, "Loading…"));
   refreshAdmin();
 }
 async function refreshAdmin(note) {
