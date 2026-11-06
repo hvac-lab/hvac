@@ -215,17 +215,19 @@ const MAP = {
     // sheet M3.2's S1 text marks -> sheet A1.3 (room-number labels, least squares) -> this picture (linework
     // correlation, room labels land within 3 px); the earlier values were within ~1 % except zones 9 and 11 (~2 %).
     // Assumes slab zone N = manifold MAN-N. A line is drawn from each box to its sensor.
-    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 78.5, sy: 61.8, sm: true },
-    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 87.5, sy: 63.2, sm: true },
-    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 88, sx: 78.3, sy: 84.2, sm: true },
-    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.8, sy: 85.1, sm: true },
+    // sx/sy = the END of each S1 tag's leader line on M3.2 (the tag sits on a short leader that points at the sensor;
+    // zone 5's tag has no leader, so its own position is used) - Russ, 2026-11-06 evening: "exactly where it should be".
+    { label: "Floor zone 1", point: "FEC-5.ZN1SLAB-T", x: 83, y: 57, sx: 78.5, sy: 58.8, sm: true },
+    { label: "Floor zone 2", point: "FEC-5.ZN2SLAB-T", x: 88, y: 80, sx: 87.5, sy: 66.4, sm: true },
+    { label: "Floor zone 3", point: "FEC-5.ZN3SLAB-T", x: 84, y: 88, sx: 78.3, sy: 87.5, sm: true },
+    { label: "Floor zone 4", point: "FEC-5.ZN4SLAB-T", x: 16, y: 88, sx: 23.8, sy: 88.4, sm: true },
     { label: "Floor zone 5", point: "FEC-5.ZN5SLAB-T", x: 14, y: 67, sx: 7.7, sy: 60.3, sm: true },  // right of the vestibule (Russ, 2026-11-05)
-    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 20.8, sy: 62.1, sm: true },
-    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 21.9, sy: 52.7, sm: true },
-    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 31.7, sy: 51.2, sm: true },  // dining room (Russ, 2026-11-05)
-    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 31, y: 68, sx: 34.5, sy: 60.9, sm: true },   // just left of the Fellowship Area box (Russ, 2026-11-06)
-    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 55.4, sy: 63.2, sm: true },
-    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 50.7, sy: 15.0, sm: true },
+    { label: "Floor zone 6", point: "FEC-5.ZN6SLAB-T", x: 23, y: 71, sx: 20.8, sy: 65.4, sm: true },
+    { label: "Floor zone 7", point: "FEC-5.ZN7SLAB-T", x: 20, y: 56, sx: 21.9, sy: 55.9, sm: true },
+    { label: "Floor zone 8", point: "FEC-5.ZN8SLAB-T", x: 37, y: 45, sx: 31.7, sy: 47.8, sm: true },  // dining room (Russ, 2026-11-05)
+    { label: "Floor zone 9", point: "FEC-5.ZN9SLAB-T", x: 31, y: 68, sx: 36.9, sy: 60.9, sm: true },   // just left of the Fellowship Area box (Russ, 2026-11-06)
+    { label: "Floor zone 10", point: "FEC-5.ZN10SLAB-T", x: 57, y: 78, sx: 55.4, sy: 66.5, sm: true },
+    { label: "Floor zone 11", point: "FEC-5.ZN11SLAB-T", x: 44, y: 22, sx: 48.3, sy: 15.0, sm: true },
   ],
 };
 
@@ -1082,7 +1084,9 @@ function ahuSvg(a) {
     return `<rect x="${x - 11}" y="${y - 22}" width="22" height="44" fill="${working ? color : surface}" fill-opacity="${working ? .25 : 1}" stroke="${working ? color : ink2}" stroke-width="${working ? 2.4 : 1.4}"/>` + h + w; };
   // fan: three blades that turn while the fan runs (SMIL animateTransform, works on phones too); the return fan turns the
   // other way (ccw) and the speed follows the VFD output (Russ, 2026-11-06 evening)
-  const fan = (x, y, run, alarm, big = 17, ccw = false, pct = null) => { const stroke = alarm ? bad : run ? good : grid; const blade = `<path d="M ${x} ${y} l 10 -12 a ${big} ${big} 0 0 1 2 20 z" fill="${stroke}" opacity=".8"/>`;
+  const fan = (x, y, run, alarm, big = 17, ccw = false, pct = null) => { const stroke = alarm ? bad : run ? good : grid;
+    // the blades curve the way the fan turns, so a still frame reads the direction too (mirrored for the ccw return fan)
+    const blade = ccw ? `<path d="M ${x} ${y} l -10 -12 a ${big} ${big} 0 0 0 -2 20 z" fill="${stroke}" opacity=".8"/>` : `<path d="M ${x} ${y} l 10 -12 a ${big} ${big} 0 0 1 2 20 z" fill="${stroke}" opacity=".8"/>`;
     const dur = (0.9 * 50 / Math.max(10, Math.min(100, pct == null ? 50 : pct))).toFixed(2);
     return `<circle cx="${x}" cy="${y}" r="${big}" fill="${surface}" stroke="${stroke}" stroke-width="${run || alarm ? 3.5 : 2}"/><g>${run ? `<animateTransform attributeName="transform" type="rotate" from="${ccw ? 360 : 0} ${x} ${y}" to="${ccw ? 0 : 360} ${x} ${y}" dur="${dur}s" repeatCount="indefinite"/>` : ""}${blade}<g transform="rotate(120 ${x} ${y})">${blade}</g><g transform="rotate(240 ${x} ${y})">${blade}</g></g><circle cx="${x}" cy="${y}" r="2.5" fill="${ink2}"/>`; };
   const sd = (x, y, alarm) => `<rect x="${x - 7}" y="${y - 7}" width="14" height="14" rx="3" fill="${alarm ? bad : surface}" stroke="${alarm ? bad : ink2}" stroke-width="1.3"/>` + label(x, y + 3, "SD", "middle", 7, alarm ? "#fff" : ink2, 700);
@@ -1115,9 +1119,9 @@ function ahuSvg(a) {
     if (rh) s += label(927, 300, `dehumidify ${ds && Number(ds.last_value) === 1 ? "ON" : "off"} · RH setpoint ${Number(rh.last_value).toFixed(0)} %`, "middle", 7.5, ds && Number(ds.last_value) === 1 ? blue : muted, 600); }
   // --- return side (top): rooms -> RA sensors -> smoke detector -> return fan -> tee: exhaust damper up to the louver, return damper down to the mixing box
   s += duct(`M 868 ${RY} H 300`, rfOn, retColor, rfSpd) + duct(`M 420 ${RY} V ${EY} H 60`, rfOn && (val("EAD-O") || 0) > 0, retColor, rfSpd);
-  s += arrow(840, RY, "l") + arrow(690, RY, "l") + arrow(420, EY + 25, "u") + arrow(150, EY, "l");
+  s += arrow(853, RY, "l") + arrow(690, RY, "l") + arrow(420, EY + 25, "u") + arrow(150, EY, "l");   // 853: clear of the RA-T value (Russ, 2026-11-06)
   s += label(640, RY - 24, "RETURN AIR from the rooms", "middle", 9, ink2, 600);
-  s += tag(785, RY, "T", `${num("RA-T", 1, " °F")}`, "r") + label(785, RY + 22, "return air (RA-T)", "middle", 8);
+  s += tag(766, RY, "T", `${num("RA-T", 1, " °F")}`, "r") + label(766, RY + 22, "return air (RA-T)", "middle", 8);
   s += sd(700, RY, raSd) + label(700, RY + 19, raSd ? "SMOKE ALARM" : "smoke detector", "middle", 7, raSd ? bad : muted, raSd ? 700 : 400);
   s += fan(600, RY, rfOn, rfAlarm, 17, true, val("RF-O"));
   s += `<rect x="570" y="${RY - 48}" width="30" height="14" rx="3" fill="${rfAlarm ? bad : surface}" stroke="${rfAlarm ? bad : ink2}" stroke-width="1.3"/>` + label(585, RY - 38, "VFD", "middle", 8, rfAlarm ? "#fff" : ink2, 700);
