@@ -36,6 +36,9 @@
   .pill { display:inline-flex; align-items:center; gap:6px; padding: 3px 10px; border-radius: 999px; font-size: 13px; border: 1px solid var(--border); color: var(--ink-2); }
   .pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
   .pill.ok .dot { background: var(--good); } .pill.warn .dot { background: var(--warning); } .pill.bad .dot { background: var(--critical); }
+  nav.tabs { display:flex; gap: 4px; padding: 8px 16px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+  nav.tabs button { border: 1px solid transparent; border-bottom: none; background: none; border-radius: 10px 10px 0 0; padding: 8px 16px; font-size: 15px; color: var(--ink-2); }
+  nav.tabs button.on { background: var(--page); border-color: var(--border); color: var(--ink); font-weight: 650; margin-bottom: -1px; }
   button, select, input[type=search], input[type=number], input[type=text] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
   input[type=number] { width: 90px; padding: 6px 8px; } input[type=text] { padding: 6px 8px; }
   button { cursor: pointer; } button:hover { background: var(--hover); } button:disabled { opacity: .5; cursor: default; }
@@ -46,6 +49,7 @@
   main { padding: 16px; max-width: 1400px; margin: 0 auto; }
   .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
   .filters .group { display:flex; gap:4px; }
+  .filters label.chk { display:inline-flex; align-items:center; gap:5px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
   .hint { color: var(--muted); font-size: 13px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
   .card h2 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
@@ -56,6 +60,13 @@
   .tile .val { font-size: 22px; font-weight: 650; margin: 2px 0; }
   .tile .val small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
   .tile .meta { font-size: 11px; color: var(--muted); display:flex; gap:6px; flex-wrap: wrap; }
+  .ahus { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .ahu { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; border-top: 4px solid var(--ac, var(--border)); }
+  .ahu h3 { margin: 0; font-size: 15px; } .ahu .where { font-size: 12px; color: var(--muted); margin-bottom: 8px; min-height: 16px; }
+  .ahu .big { font-size: 34px; font-weight: 650; line-height: 1.1; } .ahu .big small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .ahu .row { display:flex; justify-content: space-between; gap: 8px; font-size: 14px; padding: 3px 0; border-top: 1px solid var(--grid); }
+  .ahu .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .ahu .foot { font-size: 11px; color: var(--muted); margin-top: 6px; display:flex; gap: 6px; flex-wrap: wrap; }
   .badge { font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); white-space: nowrap; }
   .badge.ovr { border-color: var(--warning); } .badge.unr, .badge.err, .badge.critical { border-color: var(--critical); color: var(--critical); }
   .badge.alm, .badge.warning { border-color: var(--serious); } .badge.ok { border-color: var(--good); color: var(--good); }
@@ -89,8 +100,14 @@
   .alert { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
   .alert time { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 110px; }
   .msg { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+  .map { position: relative; display: inline-block; max-width: 100%; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .map img { display: block; max-width: 100%; height: auto; }
+  .spot { position: absolute; transform: translate(-50%, -100%); background: var(--surface); border: 2px solid var(--sc, var(--s1)); border-radius: 10px; padding: 4px 9px; font-size: 14px; font-weight: 650; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.2); line-height: 1.2; }
+  .spot small { display:block; font-size: 10px; font-weight: 400; color: var(--muted); }
+  .spot::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 10px; height: 10px; background: var(--sc, var(--s1)); border-radius: 50%; transform: translateX(-50%); }
+  .coords { position: absolute; right: 8px; bottom: 8px; font: 12px/1.2 monospace; background: rgba(0,0,0,.65); color: #fff; padding: 3px 6px; border-radius: 6px; pointer-events: none; }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } }
-  @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+  @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } nav.tabs button { padding: 8px 10px; } }
 </style>
 </head>
 <body>
@@ -102,6 +119,7 @@
   <button id="themeBtn" title="Light / dark">◐</button>
   <button id="signout" style="display:none">Sign out</button>
 </header>
+<nav class="tabs" id="tabs" style="display:none"></nav>
 <main id="main"></main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -110,6 +128,25 @@
 <script>
 (() => {
 "use strict";
+// ------------------------------------------------------------------ building configuration
+// The engine names the air handlers by controller (FEC-6/7/8); the Metasys screens call them AHU-1/2/3.
+// AHU-1 = FEC-6 was confirmed from logged values on 2026-11-05; AHU-2/3 follow the same order (to confirm).
+const AHUS = [
+  { key: "AHU-1", fec: "FEC-6", name: "AHU-1", where: "Fellowship Area, Main Entry" },
+  { key: "AHU-2", fec: "FEC-7", name: "AHU-2", where: "Kitchen and Dining" },
+  { key: "AHU-3", fec: "FEC-8", name: "AHU-3", where: "Worship Area" },
+];
+// Map tab: a picture of the building (map.png next to this file) and where to draw temperatures on it.
+// x/y are percent of the picture's width/height; the Map tab shows the pointer's x/y to help place them.
+const MAP = {
+  image: "map.png",
+  spots: [
+    { label: "Fellowship", point: "FEC-6.ZN-T", x: 30, y: 40 },
+    { label: "Kitchen / Dining", point: "FEC-7.ZN-T", x: 60, y: 40 },
+    { label: "Worship", point: "FEC-8.ZN-T", x: 45, y: 72 },
+  ],
+};
+
 const $ = (s, el = document) => el.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
   const n = document.createElement(tag);
@@ -130,17 +167,19 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
+const TABS = [["temp", "Temperature"], ["details", "Details"], ["map", "Map"]];
 const demo = new URLSearchParams(location.search).get("demo") === "1";
 const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                 set(k, v) { try { localStorage.setItem("hvac." + k, JSON.stringify(v)); } catch {} } };
 
-const state = { sb: null, user: null, points: [], byId: new Map(), sel: store.get("sel", []), range: store.get("range", "24h"),
-                table: false, charts: [], data: null, timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null };
+const state = { sb: null, user: null, points: [], byId: new Map(), byName: new Map(), sel: store.get("sel", []), range: store.get("range", "24h"),
+                tab: store.get("tab", "temp"), table: false, charts: [], data: null, timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null,
+                tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h") };
 
 // ------------------------------------------------------------------ theme
 const applyTheme = () => { const t = store.get("theme", null); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
 $("#themeBtn").onclick = () => { const cur = store.get("theme", null); const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-  const isDark = cur ? cur === "dark" : dark; store.set("theme", isDark ? "light" : "dark"); applyTheme(); redrawCharts(); };
+  const isDark = cur ? cur === "dark" : dark; store.set("theme", isDark ? "light" : "dark"); applyTheme(); if (state.points.length) renderTab(); };
 applyTheme();
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -154,6 +193,7 @@ function showSetup() {
   setStatus("bad", "no config");
 }
 function showLogin(note) {
+  $("#tabs").style.display = "none";
   const email = el("input", { type: "text", placeholder: "your email address", style: "width:100%;max-width:320px;padding:10px 12px;font-size:16px", autocomplete: "email" });
   try { email.value = store.get("email", "") || ""; } catch {}
   const msg = el("p", { class: "hint" }, note || "");
@@ -165,7 +205,7 @@ function showLogin(note) {
     btn.disabled = false;
     if (error) { msg.textContent = "Could not send: " + error.message; return; }
     store.set("email", addr);
-    msg.textContent = `Check ${addr} for a message from Supabase and click its link. It is valid for a few minutes; the link opens this page signed in.`;
+    msg.textContent = `Check ${addr} for a message from Morris North HVAC and click its link. It is valid for a few minutes; the link opens this page signed in.`;
   } }, "Email me a sign-in link");
   email.addEventListener("keydown", (e) => { if (e.key === "Enter") btn.click(); });
   screen(el("div", { class: "center" }, el("h2", {}, "Morris North HVAC"),
@@ -175,6 +215,7 @@ function showLogin(note) {
   setStatus("", "signed out");
 }
 function showNotAllowed(email) {
+  $("#tabs").style.display = "none";
   screen(el("div", { class: "center" }, el("h2", {}, "Not on the list"),
     el("p", {}, `${email} is signed in but not allowed to view this page. Ask Russ to add it.`),
     el("button", { onclick: () => state.sb.auth.signOut() }, "Sign out")));
@@ -199,6 +240,7 @@ async function loadPoints() {
   else state.points = await fetchAll("hvac_points", "id,display_name,group_name,kind,units,state_texts,writable,enabled,last_value,last_ts,last_flags,command_rule",
       q => q.eq("enabled", true).order("group_name").order("display_name"));
   state.byId = new Map(state.points.map(p => [p.id, p]));
+  state.byName = new Map(state.points.map(p => [p.display_name, p]));
   state.sel = state.sel.filter(id => state.byId.has(id));
   if (!state.sel.length) state.sel = state.points.filter(p => /ZN-T$/.test(p.display_name)).slice(0, 4).map(p => p.id);
 }
@@ -215,9 +257,9 @@ async function loadExtras() {
     state.sb.from("hvac_commands").select("*").order("id", { ascending: false }).limit(12)]);
   state.alerts = a.data || []; state.rules = r.data || []; state.cmds = c.data || [];
 }
-async function loadSeries() {
-  const r = RANGES[state.range]; const since = new Date(Date.now() - r.sec * 1000).toISOString();
-  const ids = state.sel; if (!ids.length) return { rows: [], table: r.table };
+async function loadSeries(ids, rangeKey) {
+  const r = RANGES[rangeKey]; const since = new Date(Date.now() - r.sec * 1000).toISOString();
+  if (!ids.length) return { rows: [], table: r.table };
   if (demo) return { rows: demoRows(ids, r), table: r.table };
   const cols = r.table === "hvac_samples_1m" ? "point_id,ts,value,flags" : "point_id,ts,vavg,vmin,vmax";
   const rows = await fetchAll(r.table, cols, q => q.in("point_id", ids).gte("ts", since).order("ts"));
@@ -266,6 +308,7 @@ function badges(flags) {
   return out;
 }
 function colorOf(id) { const i = state.sel.indexOf(id); return i < 0 ? null : css(SERIES[i % SERIES.length]); }
+function pt(name) { return state.byName.get(name) || null; }
 function renderStatus() {
   const s = state.status;
   if (!s || !s.last_seen) { setStatus("warn", "poller: no data yet"); return; }
@@ -273,14 +316,162 @@ function renderStatus() {
   setStatus(min <= 5 ? "ok" : min <= 30 ? "warn" : "bad", `poller ${ago(s.last_seen)}${s.points_err ? `, ${s.points_err} read errors` : ""}`);
 }
 
-// ------------------------------------------------------------------ layout
-function renderApp() {
+// ------------------------------------------------------------------ tabs
+function renderTabs() {
+  const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
+  for (const [key, label] of TABS) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+}
+function renderTab() {
+  clearTimeout(state.timer); clearInterval(state.cmdTimer);
+  state.charts.forEach(c => c.destroy()); state.charts = [];
+  renderTabs();
+  if (state.tab === "details") renderDetails();
+  else if (state.tab === "map") renderMap();
+  else renderTemperature();
+}
+
+// ------------------------------------------------------------------ Temperature tab
+function ahuPoints(a) {
+  return { zone: pt(`${a.fec}.ZN-T`), discharge: pt(`${a.fec}.DA-T`), setpoint: pt(`${a.fec}.ZNT-SP`), fan: pt(`${a.fec}.SF-S`), state: pt(`${a.fec}.AHU-STATE`), outdoor: pt(`${a.fec}.OA-T`) };
+}
+function renderTemperature() {
+  const cards = el("div", { class: "ahus", id: "ahuCards" });
+  const ahuChecks = AHUS.map((a, i) => { const cb = el("input", { type: "checkbox" }); cb.checked = state.tempAhus.includes(a.key);
+    cb.addEventListener("change", () => { state.tempAhus = AHUS.filter((x, j) => (x.key === a.key ? cb.checked : state.tempAhus.includes(x.key))).map(x => x.key); store.set("tempAhus", state.tempAhus); refreshTemperature(); });
+    return el("label", { class: "chk", style: `border-left: 4px solid ${css(SERIES[i])}` }, cb, a.name); });
+  const kindChecks = [["zone", "Zone temp"], ["discharge", "Discharge temp"]].map(([k, label]) => { const cb = el("input", { type: "checkbox" }); cb.checked = state.tempKinds.includes(k);
+    cb.addEventListener("change", () => { state.tempKinds = ["zone", "discharge"].filter(x => x === k ? cb.checked : state.tempKinds.includes(x)); store.set("tempKinds", state.tempKinds); refreshTemperature(); });
+    return el("label", { class: "chk" }, cb, label); });
   const rangeBtns = el("div", { class: "group" }, ...Object.entries(RANGES).map(([k, r]) =>
-    el("button", { class: k === state.range ? "on" : "", onclick: () => { state.range = k; store.set("range", k); renderApp(); } }, r.label)));
+    el("button", { class: k === state.tempRange ? "on" : "", onclick: () => { state.tempRange = k; store.set("tempRange", k); renderTemperature(); } }, r.label)));
+  const filters = el("div", { class: "filters" }, ...ahuChecks, el("span", { style: "width:8px" }), ...kindChecks, el("span", { style: "width:8px" }), rangeBtns,
+    el("span", { class: "hint" }, state.tempRange === "24h" ? "1-minute values, refreshes every minute" : state.tempRange === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
+  screen(cards, el("div", { class: "card chart" }, el("h3", {}, "°F"), filters, el("div", { id: "tempChart" })));
+  renderAhuCards();
+  refreshTemperature();
+}
+function renderAhuCards() {
+  const box = $("#ahuCards"); if (!box) return; box.replaceChildren();
+  AHUS.forEach((a, i) => {
+    const p = ahuPoints(a);
+    const val = (q) => q ? fmtVal(q, q.last_value) : "–";
+    const fanOn = p.fan && Number(p.fan.last_value) === 1;
+    box.append(el("div", { class: "ahu", style: `--ac:${css(SERIES[i])}` },
+      el("h3", {}, a.name), el("div", { class: "where" }, a.where),
+      el("div", { class: "big" }, val(p.zone), el("small", {}, "zone")),
+      el("div", { class: "row" }, el("span", {}, "Discharge air"), el("span", {}, val(p.discharge) + " °F")),
+      el("div", { class: "row" }, el("span", {}, "Setpoint"), el("span", {}, val(p.setpoint) + " °F", ...(p.setpoint ? badges(p.setpoint.last_flags) : []))),
+      el("div", { class: "row" }, el("span", {}, "Supply fan"), el("span", {}, p.fan ? (fanOn ? "On" : "Off") : "–")),
+      p.state ? el("div", { class: "row" }, el("span", {}, "State"), el("span", {}, val(p.state))) : null,
+      el("div", { class: "foot" }, p.zone ? ago(p.zone.last_ts) : "no data", ...(p.zone ? badges(p.zone.last_flags) : []))));
+  });
+}
+async function refreshTemperature() {
+  clearTimeout(state.timer);
+  const holder = $("#tempChart"); if (!holder) return;
+  holder.classList.add("dim");
+  try {
+    await Promise.all([loadStatus(), demo ? null : loadPoints()]);
+    renderStatus(); renderAhuCards();
+    const series = [];
+    AHUS.forEach((a, i) => {
+      if (!state.tempAhus.includes(a.key)) return;
+      const p = ahuPoints(a);
+      if (state.tempKinds.includes("zone") && p.zone) series.push({ id: p.zone.id, label: `${a.name} zone`, color: css(SERIES[i]), width: 2, p: p.zone });
+      if (state.tempKinds.includes("discharge") && p.discharge) series.push({ id: p.discharge.id, label: `${a.name} discharge`, color: css(SERIES[i]), width: 1, dash: [6, 4], p: p.discharge });
+    });
+    const data = await loadSeries(series.map(s => s.id), state.tempRange);
+    state.charts.forEach(c => c.destroy()); state.charts = [];
+    holder.replaceChildren();
+    if (!series.length) holder.append(el("div", { class: "hint" }, "Tick at least one air handler and one temperature."));
+    else { const built = buildSeries(data, series); if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 320 }); }
+  } catch (e) {
+    holder.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load data: "), String(e.message || e)));
+  } finally { holder.classList.remove("dim"); }
+  state.timer = setTimeout(refreshTemperature, 60000);
+}
+
+// ------------------------------------------------------------------ charts (shared)
+function buildSeries(data, defs) {
+  // defs: [{id, label, color, width, dash, p}] -> {xs, series: [{...def, ys, mins, maxs}]}
+  const { rows, table } = data; const raw = table === "hvac_samples_1m";
+  const xs = Array.from(new Set(rows.map(r => Math.floor(new Date(r.ts) / 1000)))).sort((a, b) => a - b);
+  const idx = new Map(xs.map((x, i) => [x, i]));
+  const per = new Map(defs.map(d => [d.id, { ...d, ys: new Array(xs.length).fill(null), mins: raw ? null : new Array(xs.length).fill(null), maxs: raw ? null : new Array(xs.length).fill(null) }]));
+  for (const r of rows) {
+    const s = per.get(r.point_id); if (!s) continue; const i = idx.get(Math.floor(new Date(r.ts) / 1000));
+    if (raw) s.ys[i] = r.value; else { s.ys[i] = r.vavg; s.mins[i] = r.vmin; s.maxs[i] = r.vmax; }
+  }
+  return { xs, series: [...per.values()] };
+}
+function drawChart(holder, built, o = {}) {
+  const { xs, series } = built;
+  const data = [xs]; const opts = { width: Math.min(holder.clientWidth || 900, 1360), height: o.height || 280,
+    cursor: { drag: { x: true, y: false } }, legend: { live: true },
+    scales: { x: { time: true }, y: {} },
+    axes: [{ stroke: css("--muted"), grid: { stroke: css("--grid"), width: 1 }, ticks: { stroke: css("--axis"), width: 1 } },
+           { stroke: css("--muted"), grid: { stroke: css("--grid"), width: 1 }, ticks: { stroke: css("--axis"), width: 1 }, size: 56,
+             values: (u, vals) => vals.map(v => o.states ? v : fmtNum(v)) }],
+    series: [{ label: "Time", value: (u, v) => v == null ? "" : new Date(v * 1000).toLocaleString() }], bands: [] };
+  for (const s of series) {
+    const stepped = s.p && s.p.kind !== "analog";
+    data.push(s.ys);
+    opts.series.push({ label: s.label, stroke: s.color, width: s.width || 2, dash: s.dash, spanGaps: false,
+      paths: stepped ? uPlot.paths.stepped({ align: 1 }) : undefined,
+      value: (u, v) => v == null ? "–" : fmtVal(s.p, v) + (s.p && s.p.kind === "analog" ? " " + unitLabel(s.p.units) : "") });
+    if (s.mins) {
+      const lo = data.length, hi = lo + 1; data.push(s.mins, s.maxs);
+      opts.series.push({ label: s.label + " min", stroke: s.color, width: 0, value: (u, v) => v == null ? "–" : fmtVal(s.p, v) },
+                       { label: s.label + " max", stroke: s.color, width: 0, value: (u, v) => v == null ? "–" : fmtVal(s.p, v) });
+      opts.bands.push({ series: [hi, lo], fill: hexA(s.color, 0.14) });
+    }
+  }
+  const chart = new uPlot(opts, data, holder);
+  chart.root.querySelectorAll(".u-legend .u-series").forEach((row, i) => { const s = opts.series[i]; if (s && / (min|max)$/.test(s.label)) row.style.display = "none"; });
+  state.charts.push(chart);
+  return chart;
+}
+function fmtNum(v) { return v == null ? "" : Math.abs(v) >= 100 ? v.toFixed(0) : (Math.round(v * 10) / 10).toString(); }
+function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
+window.addEventListener("resize", () => { state.charts.forEach(c => c.setSize({ width: Math.min(c.root.parentElement.clientWidth, 1360), height: c.height })); });
+
+// ------------------------------------------------------------------ Map tab
+function renderMap() {
+  const box = el("div", { class: "map", id: "mapBox" });
+  const img = el("img", { src: MAP.image + "?v=" + Math.floor(Date.now() / 3600000), alt: "Building map" });
+  const coords = el("div", { class: "coords" }, "move the pointer over the picture for x / y");
+  const note = el("div", { class: "card hint" }, "Temperatures are drawn on the building picture (map.png next to this page). The numbers at bottom right of the picture are the pointer's position in percent; use them to place or move a spot.");
+  img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
+    "Add a file named map.png (or change MAP.image in index.html) to the website files, and the temperature spots will be drawn on it.")); };
+  img.onload = () => drawSpots();
+  box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
+  box.append(img, coords);
+  screen(note, box);
+  refreshMap();
+}
+function drawSpots() {
+  const box = $("#mapBox"); if (!box) return;
+  box.querySelectorAll(".spot").forEach(s => s.remove());
+  MAP.spots.forEach((s, i) => {
+    const p = pt(s.point); const v = p ? fmtVal(p, p.last_value) : "–";
+    box.append(el("div", { class: "spot", style: `left:${s.x}%;top:${s.y}%;--sc:${css(SERIES[i % SERIES.length])}`, title: p ? `${p.display_name}, ${ago(p.last_ts)}` : s.point },
+      v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label)));
+  });
+}
+async function refreshMap() {
+  clearTimeout(state.timer);
+  try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); drawSpots(); } catch {}
+  state.timer = setTimeout(refreshMap, 60000);
+}
+
+// ------------------------------------------------------------------ Details tab (the original page)
+function renderDetails() {
+  const rangeBtns = el("div", { class: "group" }, ...Object.entries(RANGES).map(([k, r]) =>
+    el("button", { class: k === state.range ? "on" : "", onclick: () => { state.range = k; store.set("range", k); renderDetails(); } }, r.label)));
   const picker = el("div", { id: "picker" },
     el("button", { onclick: () => $("#picklist").classList.toggle("open") }, `Points (${state.sel.length}) ▾`),
     el("div", { id: "picklist" }));
-  const tableBtn = el("button", { class: state.table ? "on" : "", onclick: () => { state.table = !state.table; renderApp(); } }, "Table");
+  const tableBtn = el("button", { class: state.table ? "on" : "", onclick: () => { state.table = !state.table; renderDetails(); } }, "Table");
   const filters = el("div", { class: "filters" }, rangeBtns, picker, tableBtn, el("button", { onclick: downloadCsv }, "CSV"), el("button", { onclick: () => refreshAll() }, "Refresh"),
     el("span", { class: "hint" }, state.range === "24h" ? "1-minute values, refreshes every minute" : state.range === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
   screen(filters, el("div", { id: "charts" }), el("div", { class: "card", id: "controls" }), el("div", { class: "card", id: "tiles" }),
@@ -328,7 +519,6 @@ function buildTiles() {
     box.append(grid);
   }
 }
-
 async function refreshAll() {
   clearTimeout(state.timer);
   const chartsBox = $("#charts"); if (!chartsBox) return;
@@ -336,69 +526,35 @@ async function refreshAll() {
   try {
     await Promise.all([loadStatus(), loadExtras(), demo ? null : loadPoints().then(buildTiles)]);
     renderStatus(); renderExtras();
-    state.data = await loadSeries();
+    state.data = await loadSeries(state.sel, state.range);
     renderCharts();
   } catch (e) {
     chartsBox.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load data: "), String(e.message || e)));
   } finally { chartsBox.classList.remove("dim"); }
   if (state.range === "24h") state.timer = setTimeout(refreshAll, 60000);
 }
-
-// ------------------------------------------------------------------ charts
-function seriesData() {
-  const { rows, table } = state.data; const raw = table === "hvac_samples_1m";
-  const xs = Array.from(new Set(rows.map(r => Math.floor(new Date(r.ts) / 1000)))).sort((a, b) => a - b);
-  const idx = new Map(xs.map((x, i) => [x, i]));
-  const per = new Map(state.sel.map(id => [id, { p: state.byId.get(id), ys: new Array(xs.length).fill(null), mins: raw ? null : new Array(xs.length).fill(null), maxs: raw ? null : new Array(xs.length).fill(null) }]));
-  for (const r of rows) {
-    const s = per.get(r.point_id); if (!s) continue; const i = idx.get(Math.floor(new Date(r.ts) / 1000));
-    if (raw) s.ys[i] = r.value; else { s.ys[i] = r.vavg; s.mins[i] = r.vmin; s.maxs[i] = r.vmax; }
-  }
-  return { xs, series: [...per.values()].filter(s => s.p) };
+function detailsSeries() {
+  const defs = state.sel.map(id => ({ id, label: state.byId.get(id)?.display_name || String(id), color: colorOf(id), width: 2, p: state.byId.get(id) })).filter(d => d.p);
+  return buildSeries(state.data, defs);
 }
 function renderCharts() {
   const box = $("#charts"); box.replaceChildren(); state.charts.forEach(c => c.destroy()); state.charts = [];
   if (!state.sel.length) { box.append(el("div", { class: "card hint" }, "Pick one or more points (tiles below, or the Points menu).")); return; }
-  const { xs, series } = seriesData();
-  if (!xs.length) { box.append(el("div", { class: "card hint" }, "No data in this range yet.")); return; }
-  if (state.table) { box.append(renderTable(xs, series)); return; }
+  const built = detailsSeries();
+  if (!built.xs.length) { box.append(el("div", { class: "card hint" }, "No data in this range yet.")); return; }
+  if (state.table) { box.append(renderTable(built)); return; }
   const groups = new Map();
-  for (const s of series) { const k = s.p.kind === "analog" ? (s.p.units || "no-units") : "states"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); }
+  for (const s of built.series) { const k = s.p.kind === "analog" ? (s.p.units || "no-units") : "states"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); }
   for (const [unit, ss] of groups) {
     const card = el("div", { class: "card chart" }, el("h3", {}, unit === "states" ? "Equipment states" : unitLabel(unit) || "Values"));
     const holder = el("div"); card.append(holder); box.append(card);
-    const data = [xs]; const opts = { width: Math.min(holder.clientWidth || 900, 1360), height: unit === "states" ? 180 : 280,
-      cursor: { drag: { x: true, y: false } }, legend: { live: true },
-      scales: { x: { time: true }, y: {} },
-      axes: [{ stroke: css("--muted"), grid: { stroke: css("--grid"), width: 1 }, ticks: { stroke: css("--axis"), width: 1 } },
-             { stroke: css("--muted"), grid: { stroke: css("--grid"), width: 1 }, ticks: { stroke: css("--axis"), width: 1 }, size: 56,
-               values: (u, vals) => vals.map(v => unit === "states" ? v : fmtNum(v)) }],
-      series: [{ label: "Time", value: (u, v) => v == null ? "" : new Date(v * 1000).toLocaleString() }], bands: [] };
-    for (const s of ss) {
-      const color = colorOf(s.p.id); const stepped = s.p.kind !== "analog";
-      data.push(s.ys);
-      opts.series.push({ label: s.p.display_name, stroke: color, width: 2, spanGaps: false,
-        paths: stepped ? uPlot.paths.stepped({ align: 1 }) : undefined,
-        value: (u, v) => v == null ? "–" : fmtVal(s.p, v) + (s.p.kind === "analog" ? " " + unitLabel(s.p.units) : "") });
-      if (s.mins) {
-        const lo = data.length, hi = lo + 1; data.push(s.mins, s.maxs);
-        opts.series.push({ label: s.p.display_name + " min", stroke: color, width: 0, value: (u, v) => v == null ? "–" : fmtVal(s.p, v) },
-                         { label: s.p.display_name + " max", stroke: color, width: 0, value: (u, v) => v == null ? "–" : fmtVal(s.p, v) });
-        opts.bands.push({ series: [hi, lo], fill: hexA(color, 0.14) });
-      }
-    }
-    const chart = new uPlot(opts, data, holder);
-    chart.root.querySelectorAll(".u-legend .u-series").forEach((row, i) => { const s = opts.series[i]; if (s && / (min|max)$/.test(s.label)) row.style.display = "none"; });
-    state.charts.push(chart);
+    drawChart(holder, { xs: built.xs, series: ss }, { height: unit === "states" ? 180 : 280, states: unit === "states" });
   }
 }
-function fmtNum(v) { return v == null ? "" : Math.abs(v) >= 100 ? v.toFixed(0) : (Math.round(v * 10) / 10).toString(); }
-function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
-function redrawCharts() { if (state.data) renderCharts(); buildTiles(); }
-window.addEventListener("resize", () => { state.charts.forEach(c => c.setSize({ width: Math.min(c.root.parentElement.clientWidth, 1360), height: c.height })); });
-function renderTable(xs, series) {
+function renderTable(built) {
+  const { xs, series } = built;
   const wrap = el("div", { class: "card" });
-  const head = el("tr", {}, el("th", {}, "Time"), ...series.map(s => el("th", { class: "num" }, s.p.display_name + (s.p.kind === "analog" && s.p.units ? ` (${unitLabel(s.p.units)})` : ""))));
+  const head = el("tr", {}, el("th", {}, "Time"), ...series.map(s => el("th", { class: "num" }, s.label + (s.p.kind === "analog" && s.p.units ? ` (${unitLabel(s.p.units)})` : ""))));
   const body = el("tbody");
   const step = Math.max(1, Math.ceil(xs.length / 2000));
   for (let i = xs.length - 1; i >= 0; i -= step) body.append(el("tr", {}, el("td", {}, new Date(xs[i] * 1000).toLocaleString()), ...series.map(s => el("td", { class: "num" }, fmtVal(s.p, s.ys[i])))));
@@ -407,8 +563,8 @@ function renderTable(xs, series) {
   return wrap;
 }
 function downloadCsv() {
-  if (!state.data) return; const { xs, series } = seriesData();
-  const lines = ["time," + series.map(s => JSON.stringify(s.p.display_name)).join(",")];
+  if (!state.data) return; const { xs, series } = detailsSeries();
+  const lines = ["time," + series.map(s => JSON.stringify(s.label)).join(",")];
   for (let i = 0; i < xs.length; i++) lines.push(new Date(xs[i] * 1000).toISOString() + "," + series.map(s => s.ys[i] ?? "").join(","));
   const blob = new Blob([lines.join("\n")], { type: "text/csv" }); const a = el("a", { href: URL.createObjectURL(blob), download: `hvac-${state.range}.csv` });
   document.body.append(a); a.click(); a.remove();
@@ -512,25 +668,32 @@ function ruleRow(r) {
 // ------------------------------------------------------------------ demo data (?demo=1, no Supabase needed)
 function demoPoints() {
   const mk = (id, name, group, kind, units, v, flags = 0, st = null, cr = null) => ({ id, display_name: name, group_name: group, kind, units, state_texts: st, writable: !!cr, enabled: true, last_value: v, last_ts: new Date().toISOString(), last_flags: flags, command_rule: cr });
-  return [mk(1, "FEC-6.ZN-T", "FEC-6", "analog", "degrees-fahrenheit", 68.5), mk(2, "FEC-6.ZNT-SP", "FEC-6", "analog", "degrees-fahrenheit", 70, 4, null, { min: 60, max: 80, priority: 8, label: "Zone setpoint" }),
-    mk(3, "FEC-6.AHU-STATE", "FEC-6", "multistate", null, 7, 0, ["Satisfied", "Econ", "Econ+Mech", "HX Cool+Mech", "HX Heat", "HX Heat+Preheat", "HX Heat+Preheat+Reheat", "Cooling Idle", "Heating Idle", "Temperature Unreliable"]),
-    mk(8, "FEC-6.ZN-TOCC", "FEC-6", "binary", null, 0, 0, ["Inactive", "Active"], { values: [0, 1], priority: 8, label: "Temporary occupancy" }),
-    mk(4, "FEC-7.ZN-T", "FEC-7", "analog", "degrees-fahrenheit", 69.2), mk(5, "FEC-7.SF-S", "FEC-7", "binary", null, 1, 0, ["Off", "On"]),
-    mk(6, "FEC-8.ZN-T", "FEC-8", "analog", "degrees-fahrenheit", 68.9, 16), mk(7, "Boiler-1&2.AV-303", "Boiler-1&2", "analog", "no-units", 103)];
+  const states = ["Satisfied", "Econ", "Econ+Mech", "HX Cool+Mech", "HX Heat", "HX Heat+Preheat", "HX Heat+Preheat+Reheat", "Cooling Idle", "Heating Idle", "Temperature Unreliable"];
+  const out = []; let id = 1;
+  [["FEC-6", 68.5, 71.3], ["FEC-7", 68.6, 68.0], ["FEC-8", 68.7, 68.2]].forEach(([fec, zn, da], i) => {
+    out.push(mk(id++, `${fec}.ZN-T`, fec, "analog", "degrees-fahrenheit", zn, i === 2 ? 16 : 0));
+    out.push(mk(id++, `${fec}.DA-T`, fec, "analog", "degrees-fahrenheit", da));
+    out.push(mk(id++, `${fec}.ZNT-SP`, fec, "analog", "degrees-fahrenheit", 70, i === 0 ? 4 : 0, null, { min: 60, max: 80, priority: 8, label: "Zone setpoint" }));
+    out.push(mk(id++, `${fec}.SF-S`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]));
+    out.push(mk(id++, `${fec}.AHU-STATE`, fec, "multistate", null, 7 + i, 0, states));
+    out.push(mk(id++, `${fec}.ZN-TOCC`, fec, "binary", null, 0, 0, ["Inactive", "Active"], { values: [0, 1], priority: 8, label: "Temporary occupancy" }));
+  });
+  out.push(mk(id++, "Boiler-1&2.AV-303", "Boiler-1&2", "analog", "no-units", 103));
+  return out;
 }
 function demoExtras() {
   const now = Date.now();
   state.alerts = [{ id: 2, ts: new Date(now - 3600e3).toISOString(), level: "warning", message: "FEC-8.ZN-T reports Unreliable for 30 min (value 68.9 °F)", cleared_at: null },
                   { id: 1, ts: new Date(now - 86400e3).toISOString(), level: "critical", message: "FEC-6.ZN-T is 52.1 °F, below 55.0 °F for 15 min", cleared_at: new Date(now - 80000e3).toISOString() }];
   state.rules = [{ id: 1, name: "Freeze risk FEC-6 zone", point_id: 1, condition: "below", threshold: 55, for_minutes: 15, level: "critical", enabled: true },
-                 { id: 2, name: "FEC-6 not holding setpoint", point_id: 1, point2_id: 2, condition: "deviation", threshold: 6, for_minutes: 120, level: "warning", enabled: true }];
-  state.cmds = [{ id: 1, created_at: new Date(now - 7200e3).toISOString(), created_by: "russ@example.org", point_id: 2, value: 72, release: false, duration_min: 240, status: "done", result: "confirmed 72.0", released_at: null }];
+                 { id: 2, name: "FEC-6 not holding setpoint", point_id: 1, point2_id: 3, condition: "deviation", threshold: 6, for_minutes: 120, level: "warning", enabled: true }];
+  state.cmds = [{ id: 1, created_at: new Date(now - 7200e3).toISOString(), created_by: "russ@example.org", point_id: 3, value: 72, release: false, duration_min: 240, status: "done", result: "confirmed 72.0", released_at: null }];
 }
 function demoRows(ids, r) {
   const step = r.table === "hvac_samples_1m" ? 60 : r.table === "hvac_rollup_15m" ? 900 : 3600; const n = Math.floor(r.sec / step); const now = Math.floor(Date.now() / 1000 / step) * step;
   const rows = [];
   for (const id of ids) { const p = state.byId.get(id); for (let i = n; i >= 0; i--) { const t = now - i * step; let v;
-    if (p.kind === "analog") v = 68 + 3 * Math.sin(t / 7000 + id) + (Math.random() - .5); else if (p.kind === "binary") v = Math.sin(t / 5000) > 0 ? 1 : 0; else v = 1 + Math.floor((Math.sin(t / 9000) + 1) * 4.4);
+    if (p.kind === "analog") v = (p.last_value || 68) + 3 * Math.sin(t / 7000 + id) + (Math.random() - .5); else if (p.kind === "binary") v = Math.sin(t / 5000) > 0 ? 1 : 0; else v = 1 + Math.floor((Math.sin(t / 9000) + 1) * 4.4);
     if (r.table === "hvac_samples_1m") rows.push({ point_id: id, ts: new Date(t * 1000).toISOString(), value: v, flags: 0 });
     else rows.push({ point_id: id, ts: new Date(t * 1000).toISOString(), vavg: v, vmin: v - (p.kind === "analog" ? .8 : 0), vmax: v + (p.kind === "analog" ? .8 : 0) }); } }
   return rows;
@@ -540,7 +703,7 @@ function demoRows(ids, r) {
 async function boot() {
   const cfg = window.HVAC_CONFIG;
   if (cfg && cfg.TITLE) { $("#title").textContent = cfg.TITLE; document.title = cfg.TITLE; }
-  if (demo) { $("#who").textContent = "demo data"; await loadPoints(); renderApp(); return; }
+  if (demo) { $("#who").textContent = "demo data"; await loadPoints(); renderTab(); return; }
   if (!cfg || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || cfg.SUPABASE_URL.includes("xxxx")) { showSetup(); return; }
   state.sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   $("#signout").onclick = () => state.sb.auth.signOut();
@@ -551,7 +714,7 @@ async function boot() {
     if (!state.user) { showLogin(); return; }
     const { data, error } = await state.sb.from("hvac_allowed_users").select("email").limit(1);
     if (error || !data || !data.length) { showNotAllowed(state.user.email); return; }
-    try { await loadPoints(); renderApp(); }
+    try { await loadPoints(); renderTab(); }
     catch (e) { screen(el("div", { class: "card" }, "Could not load points: " + (e.message || e))); }
   };
   const hash = location.hash || "";
