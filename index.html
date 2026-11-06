@@ -752,7 +752,7 @@ function renderMap() {
   const box = el("div", { class: "map full", id: "mapBox" });
   const img = el("img", { alt: "Building floor plan" });
   const coords = el("div", { class: "coords" }, "move the pointer over the picture for x / y");
-  const note = el("div", { class: "card hint" }, "Room temperatures (big) and in-floor slab temperatures (small, dashed, placed from the hydronic plan's S1 sensor marks) drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot.");
+  const note = el("div", { class: "card hint" }, "Room temperatures (big) and in-floor slab temperatures (small, dashed, placed from the hydronic plan's S1 sensor marks) drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot. Pinch to zoom on a phone.");
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
     `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
   // laid out at the picture's own size, then scaled to fit the screen (fitMap): a phone sees the whole plan and pinches in
