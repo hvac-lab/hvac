@@ -136,14 +136,14 @@
   .sched .now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--critical); }
   .sched .times { grid-column: 3; font-size: 12px; color: var(--ink-2); }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
-  @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } nav.tabs button { padding: 8px 10px; } td.desc { display: none; } th.desc { display: none; }
-    /* Audit on a phone: every column on the screen at once in small print, pinch to zoom in to read (Russ, 2026-11-06:
-       the What column took the room and Equipment / Description needed scrolling) */
+  @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } nav.tabs button { padding: 8px 10px; }
+    /* Audit and Details tables on a phone: every column, Description included, on the screen at once in small print;
+       pinch to zoom in to read (Russ, 2026-11-06: the What column took the room and Equipment / Description needed
+       scrolling; on Details "the description is the most important thing to see") */
     nav.tabs { flex-wrap: wrap; } nav.tabs button { white-space: nowrap; }
-    table.audit { font-size: 9px; } table.audit th, table.audit td { padding: 2px 3px; }
-    table.audit td.desc, table.audit th.desc { display: table-cell; }
-    table.audit .badge { white-space: normal; font-size: 9px; padding: 0 4px; line-height: 1.2; }
-    table.audit td.ctr, table.audit th.ctr { white-space: normal; }
+    table.audit, table.vals { font-size: 9px; } table.audit th, table.audit td, table.vals th, table.vals td { padding: 2px 3px; }
+    table.audit .badge, table.vals .badge { white-space: normal; font-size: 9px; padding: 0 4px; line-height: 1.2; }
+    table.audit td.ctr, table.audit th.ctr, table.vals td.num, table.vals th.num { white-space: normal; } table.vals td.hint { font-size: 9px; }
     table.audit pre { font-size: 9px !important; } }
 </style>
 </head>
@@ -237,7 +237,7 @@ const BOILERS = [
   { name: "Boiler-2", supply: "Boiler-1&2.AV-403", ret: "Local Application.HWR-T", retNote: "loop return, boiler 2 has no return sensor", fire: "Boiler-1&2.AV-408", status: "Boiler-1&2.AV-401", fault: "Boiler-1&2.AV-402" },
 ];
 const BOILER_STATUS = { 0: "Off (disabled)", 1: "Standby", 2: "Manual", 3: "Running", 4: "Fault" };
-const BOILER_COLORS = ["--s6", "--s8"];   // chart colours: Boiler-1 green, Boiler-2 red (Russ, 2026-11-05)
+const BOILER_COLORS = ["--s1", "--s2"];   // chart colours: Boiler-1 blue, Boiler-2 orange (Russ, 2026-11-06)
 // Russ, 2026-11-05: no changes from the page for now (hides "Set from here" and the rule editor). Set true to bring them back.
 const ALLOW_CHANGES = false;
 // Details tab: names for the engine's controller groups, in display order
@@ -340,13 +340,14 @@ async function loadExtras() {
     state.sb.from("hvac_commands").select("*").order("id", { ascending: false }).limit(12)]);
   state.alerts = a.data || []; state.rules = r.data || []; state.cmds = c.data || [];
 }
-async function loadSeries(ids, rangeKey) {
-  const r = RANGES[rangeKey]; const since = new Date(Date.now() - r.sec * 1000).toISOString();
-  if (!ids.length) return { rows: [], table: r.table };
-  if (demo) return { rows: demoRows(ids, r), table: r.table };
-  const cols = r.table === "hvac_samples_1m" ? "point_id,ts,value,flags" : "point_id,ts,vavg,vmin,vmax";
-  const rows = await fetchAll(r.table, cols, q => q.in("point_id", ids).gte("ts", since).order("ts"));
-  return { rows, table: r.table };
+// table: normally the range's own (1-minute values for 24 h); the AHU chart passes the 15-minute rollup for 24 h too
+async function loadSeries(ids, rangeKey, table) {
+  const r = RANGES[rangeKey]; table = table || r.table; const since = new Date(Date.now() - r.sec * 1000).toISOString();
+  if (!ids.length) return { rows: [], table };
+  if (demo) return { rows: snap && snap[table] ? snap[table].filter(x => ids.includes(x.point_id) && x.ts >= since) : demoRows(ids, { ...r, table }), table };
+  const cols = table === "hvac_samples_1m" ? "point_id,ts,value,flags" : "point_id,ts,vavg";   // no min/max band any more (Russ, 2026-11-06)
+  const rows = await fetchAll(table, cols, q => q.in("point_id", ids).gte("ts", since).order("ts"));
+  return { rows, table };
 }
 async function insertCommand(p, value, release, duration) {
   const row = { point_id: p.id, value: release ? null : value, priority: 8, release, duration_min: duration || null,
@@ -466,7 +467,7 @@ function renderTemperature() {
   smoothCb.addEventListener("change", () => { state.tempSmooth = smoothCb.checked; store.set("tempSmooth", state.tempSmooth); refreshTemperature(); });
   const filters = el("div", { class: "filters" }, ...ahuChecks, el("span", { style: "width:8px" }), ...kindChecks, el("span", { style: "width:8px" }), rangeBtns,
     el("label", { class: "chk", title: "Average each minute with the minutes around it so sensor jitter does not show" }, smoothCb, "Smooth"),
-    el("span", { class: "hint" }, state.tempRange === "24h" ? "1-minute values, refreshes every minute" : state.tempRange === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
+    el("span", { class: "hint" }, state.tempRange === "24h" ? "15-minute averages, refreshes every minute" : state.tempRange === "1y" ? "hourly averages" : "15-minute averages"));
   screen(cards, el("div", { class: "card chart temp" }, el("h3", {}, "°F"), filters, el("div", { id: "tempChart" })),
          el("div", { class: "card", style: "border-radius: 18px" }, el("h2", {}, "Boilers"), el("div", { class: "boilers", id: "boilers" })),
          el("div", { class: "card chart temp" }, el("h3", {}, "Boiler temperatures, °F"), boilerFilters(), el("div", { id: "boilerChart" })));
@@ -507,7 +508,7 @@ function boilerFilters() {
     el("span", { style: "width:8px" }),
     el("div", { class: "group" }, ...Object.entries(RANGES).map(([k, r]) => el("button", { class: k === state.boilerRange ? "on" : "", onclick: () => { state.boilerRange = k; store.set("boilerRange", k); $("#boilerFilters").replaceWith(boilerFilters()); refreshBoilerChart(); } }, r.label))),
     chk("Smooth", state.boilerSmooth, on => { state.boilerSmooth = on; store.set("boilerSmooth", on); refreshBoilerChart(); }),
-    el("span", { class: "hint" }, state.boilerRange === "24h" ? "1-minute values" : state.boilerRange === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
+    el("span", { class: "hint" }, state.boilerRange === "24h" ? "1-minute values" : state.boilerRange === "1y" ? "hourly averages" : "15-minute averages"));
 }
 function boilerSeriesDefs() {
   const defs = [];
@@ -531,7 +532,7 @@ async function refreshBoilerChart() {
     if (!defs.length) holder.append(el("div", { class: "hint" }, "Tick at least one boiler and one temperature."));
     else {
       const built = buildSeries(data, defs);
-      if (state.boilerSmooth) for (const s of built.series) { s.ys = smooth(s.ys, state.boilerRange === "24h" ? 5 : 3); if (s.mins) { s.mins = smooth(s.mins, 3); s.maxs = smooth(s.maxs, 3); } }
+      if (state.boilerSmooth) for (const s of built.series) s.ys = smooth(s.ys, state.boilerRange === "24h" ? 5 : 3);
       if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 280, curved: true });
     }
   } catch (e) { holder.replaceChildren(el("div", { class: "hint" }, "Could not load boiler data: " + (e.message || e))); }
@@ -568,15 +569,16 @@ async function refreshTemperature() {
       if (state.tempKinds.includes("zone") && p.zone) series.push({ id: p.zone.id, label: `${a.name} - ${a.where} zone`, color: css(SERIES[i]), width: 2, p: p.zone });
       if (state.tempKinds.includes("discharge") && p.discharge) series.push({ id: p.discharge.id, label: `${a.name} - ${a.where} discharge`, color: css(SERIES[i]), width: 1, dash: [6, 4], p: p.discharge });
     });
-    const data = await loadSeries(series.map(s => s.id), state.tempRange);
+    // The AHU sensors report in 0.3 °F steps, so 1-minute values are a staircase even after averaging (Russ, 2026-11-05/06:
+    // "jerky up and down", "should match the 7 days"). The 24 h view therefore draws the same 15-minute averages the
+    // 7-day view does (hvac_rollup_15m; the newest point can be up to 15 minutes old). The boiler chart keeps 1-minute values.
+    const data = await loadSeries(series.map(s => s.id), state.tempRange, state.tempRange === "24h" ? "hvac_rollup_15m" : undefined);
     state.charts.forEach(c => c.destroy()); state.charts = [];
     holder.replaceChildren();
     if (!series.length) holder.append(el("div", { class: "hint" }, "Tick at least one air handler and one temperature."));
     else {
       const built = buildSeries(data, series);
-      // The AHU sensors report in 0.3 °F steps, so 1-minute values are a staircase; a 15-minute centred average turns the
-      // steps into gentle ramps (Russ, 2026-11-05: "why isn't the 24 h graph smooth"). Longer ranges are already averages.
-      if (state.tempSmooth) for (const s of built.series) { s.ys = smooth(s.ys, state.tempRange === "24h" ? 15 : 3); if (s.mins) { s.mins = smooth(s.mins, 3); s.maxs = smooth(s.maxs, 3); } }
+      if (state.tempSmooth) for (const s of built.series) s.ys = smooth(s.ys, 3);
       if (!built.xs.length) holder.append(el("div", { class: "hint" }, "No data in this range yet.")); else drawChart(holder, built, { height: 320, curved: true });
     }
     await refreshBoilerChart();
@@ -599,14 +601,15 @@ function smooth(ys, n) {
   return out;
 }
 function buildSeries(data, defs) {
-  // defs: [{id, label, color, width, dash, p}] -> {xs, series: [{...def, ys, mins, maxs}]}
+  // defs: [{id, label, color, width, dash, p}] -> {xs, series: [{...def, ys}]}; rollup rows give their average only
+  // (the min-max band was dropped 2026-11-06, Russ: "I don't want the averages with min-max band")
   const { rows, table } = data; const raw = table === "hvac_samples_1m";
   const xs = Array.from(new Set(rows.map(r => Math.floor(new Date(r.ts) / 1000)))).sort((a, b) => a - b);
   const idx = new Map(xs.map((x, i) => [x, i]));
-  const per = new Map(defs.map(d => [d.id, { ...d, ys: new Array(xs.length).fill(null), mins: raw ? null : new Array(xs.length).fill(null), maxs: raw ? null : new Array(xs.length).fill(null) }]));
+  const per = new Map(defs.map(d => [d.id, { ...d, ys: new Array(xs.length).fill(null) }]));
   for (const r of rows) {
     const s = per.get(r.point_id); if (!s) continue; const i = idx.get(Math.floor(new Date(r.ts) / 1000));
-    if (raw) s.ys[i] = r.value; else { s.ys[i] = r.vavg; s.mins[i] = r.vmin; s.maxs[i] = r.vmax; }
+    s.ys[i] = raw ? r.value : r.vavg;
   }
   return { xs, series: [...per.values()] };
 }
@@ -631,20 +634,12 @@ function drawChart(holder, built, o = {}) {
         if (v == null && u.cursor.idx == null) { const ys = u.data[si]; for (let i = ys.length - 1; i >= 0; i--) if (ys[i] != null) { v = ys[i]; break; } }
         return v == null ? "–" : fmtVal(s.p, v) + (s.p && s.p.kind === "analog" ? " " + unitLabel(s.p.units) : "");
       } });
-    if (s.mins) {
-      const lo = data.length, hi = lo + 1; data.push(s.mins, s.maxs);
-      opts.series.push({ label: s.label + " min", stroke: s.color, width: 0, points: { show: false }, value: (u, v) => v == null ? "–" : fmtVal(s.p, v) },
-                       { label: s.label + " max", stroke: s.color, width: 0, points: { show: false }, value: (u, v) => v == null ? "–" : fmtVal(s.p, v) });
-      opts.bands.push({ series: [hi, lo], fill: hexA(s.color, 0.14) });
-    }
   }
   const chart = new uPlot(opts, data, holder);
-  chart.root.querySelectorAll(".u-legend .u-series").forEach((row, i) => { const s = opts.series[i]; if (s && / (min|max)$/.test(s.label)) row.style.display = "none"; });
   state.charts.push(chart);
   return chart;
 }
 function fmtNum(v) { return v == null ? "" : Math.abs(v) >= 100 ? v.toFixed(0) : (Math.round(v * 10) / 10).toString(); }
-function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
 window.addEventListener("resize", () => { state.charts.forEach(c => c.setSize({ width: Math.min(c.root.parentElement.clientWidth, 1360), height: c.height })); });
 
 // ------------------------------------------------------------------ pictures (private storage bucket, signed links)
@@ -1065,7 +1060,7 @@ function demoRows(ids, r) {
   for (const id of ids) { const p = state.byId.get(id); for (let i = n; i >= 0; i--) { const t = now - i * step; let v;
     if (p.kind === "analog") v = (p.last_value || 68) + 3 * Math.sin(t / 7000 + id) + (Math.random() - .5); else if (p.kind === "binary") v = Math.sin(t / 5000) > 0 ? 1 : 0; else v = 1 + Math.floor((Math.sin(t / 9000) + 1) * 4.4);
     if (r.table === "hvac_samples_1m") rows.push({ point_id: id, ts: new Date(t * 1000).toISOString(), value: v, flags: 0 });
-    else rows.push({ point_id: id, ts: new Date(t * 1000).toISOString(), vavg: v, vmin: v - (p.kind === "analog" ? .8 : 0), vmax: v + (p.kind === "analog" ? .8 : 0) }); } }
+    else rows.push({ point_id: id, ts: new Date(t * 1000).toISOString(), vavg: v }); } }
   return rows;
 }
 
