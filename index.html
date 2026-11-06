@@ -264,8 +264,8 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["loopmap", "Heating loop diagram"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
-const LOOPMAP_FOR = ["russkoehl@gmail.com"];   // the Heating loop diagram tab shows only for these sign-ins (Russ, 2026-11-06 evening); demo mode shows it
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
+// The "Heating loop diagram" tab (key "loopmap", code kept below the ladder) is parked: Russ, 2026-11-06 evening, "Remove the Heating Loop Diagram".
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -508,9 +508,8 @@ function renderStatus() {
 // ------------------------------------------------------------------ tabs
 function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
-  const loopMapOk = demo || !!(state.user && LOOPMAP_FOR.includes(String(state.user.email || "").toLowerCase()));
-  if ((state.tab === "admin" && !state.admin) || (state.tab === "loopmap" && !loopMapOk)) state.tab = "temp";
-  for (const [key, label] of TABS) if ((key !== "admin" || state.admin) && (key !== "loopmap" || loopMapOk)) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+  if ((state.tab === "admin" && !state.admin) || !TABS.some(t => t[0] === state.tab)) state.tab = "temp";
+  for (const [key, label] of TABS) if (key !== "admin" || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
   const on = nav.querySelector("button.on"); if (on && nav.scrollWidth > nav.clientWidth) on.scrollIntoView({ block: "nearest", inline: "center" });   // phone: one scrolling row
 }
 function renderTab() {
@@ -808,6 +807,10 @@ function setMapView(z, tx, ty) {
   const box = $("#mapBox"); const wrap = box && box.parentElement; if (!box || !wrap) return;
   const v = state.mapView; v.z = Math.max(1, Math.min(8, z));
   const s = v.k * v.z, cw = box.offsetWidth * s, ch = box.offsetHeight * s;
+  if (!wrap.classList.contains("fs")) {   // zoomed in: the frame also takes the screen below the plan instead of staying a short strip (Russ, 2026-11-06, phone)
+    const fitH = Math.round(box.offsetHeight * v.k);
+    wrap.style.height = (v.z > 1 ? Math.max(fitH, Math.floor(window.innerHeight - wrap.getBoundingClientRect().top - 8)) : fitH) + "px";
+  }
   // smaller than the frame: centred; bigger: no gap at any edge
   v.tx = cw <= wrap.clientWidth ? (wrap.clientWidth - cw) / 2 : Math.min(0, Math.max(wrap.clientWidth - cw, tx));
   v.ty = ch <= wrap.clientHeight ? (wrap.clientHeight - ch) / 2 : Math.min(0, Math.max(wrap.clientHeight - ch, ty));
@@ -1316,7 +1319,7 @@ function loopSvg() {
   return `<svg viewBox="0 0 1000 ${bottom + 54}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
 }
 
-// ------------------------------------------------------------------ Heating loop diagram tab (Russ, 2026-11-06 evening)
+// ------------------------------------------------------------------ Heating loop diagram tab (Russ, 2026-11-06 evening; PARKED the same evening: "Remove the Heating Loop Diagram" - not in TABS, add ["loopmap", "Heating loop diagram"] back to show it)
 // The same loop as the ladder, drawn where it really runs, over a faded copy of the floor plan. Sheet M3.1 detail 1
 // (basement hydronic plan): the basement sits under the Fellowship Area and holds the boilers B-1/B-2, the pumps
 // CP-1/CP-2 with the expansion tank and glycol feeder against its east wall, AHU-1 / AHU-2 / AHU-3, and manifolds 1-9
