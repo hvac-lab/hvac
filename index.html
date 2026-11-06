@@ -223,7 +223,7 @@ const MAP = {
     // Other sensors the plan set shows (HVAC plan M2.2 / hydronic plan M3.2): FCU-1 in the Sound Room (FEC-9),
     // the vestibule cabinet heaters CUH-1/2 whose controller FEC-10 has its own zone sensor.
     { label: "Sound Room (FCU-1)", point: "FEC-9.FCU1-ZN-T", x: 54, y: 91.8, sm: true },   // box bottom near the outside wall (Russ, 2026-11-06)
-    { label: "Vestibule (CUH-1/2)", point: "FEC-10.ZN-T", x: 7, y: 76, sm: true },
+    { label: "Vestibule (CUH-1/2)", point: "FEC-10.ZN-T", x: 7, y: 74, sm: true },   // box bottom on the wall below it (Russ, 2026-11-06)
     // In-floor slab zones. x/y = where the box sits (the floor area the zone heats, judged from the tubing on hydronic
     // plan M3.2); sx/sy = the S1 slab sensor beside manifold MAN-N. Re-measured 2026-11-06 evening from the plan set:
     // sheet M3.2's S1 text marks -> sheet A1.3 (room-number labels, least squares) -> this picture (linework
@@ -451,7 +451,7 @@ function fmtVal(p, v) {
   if (p.kind === "multistate") { const t = p.state_texts; const s = t && t[v - 1]; return s ? (STATE_WORDS[s] || s) : `state ${v}`; }
   return Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1);
 }
-function unitLabel(u) { if (!u || u === "no-units") return ""; return { "degrees-fahrenheit": "°F", "degrees-celsius": "°C", "percent": "%", "percent-relative-humidity": "% RH",
+function unitLabel(u) { if (!u || u === "no-units") return ""; return { "degrees-fahrenheit": "°F", "degrees-celsius": "°C", "percent": "%", "percent-relative-humidity": "% humidity",
   "inches-of-water": "in. w.c.", "pounds-force-per-square-inch": "psi", "seconds": "s", "minutes": "min", "btus-per-pound": "BTU/lb",
   "cubic-feet-per-minute": "CFM", "parts-per-million": "ppm", "volts": "V", "amperes": "A", "kilowatts": "kW" }[u] || u.replace(/-/g, " "); }
 function ago(iso) { if (!iso) return "never"; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; }
@@ -664,7 +664,7 @@ function renderAhuCards() {
       el("h3", {}, a.name), el("div", { class: "where" }, a.where),
       el("div", { class: "big" }, val(p.zone), el("small", {}, "zone")),
       el("div", { class: "row" }, el("span", {}, "Discharge air"), el("span", {}, val(p.discharge) + " °F")),
-      p.humidity ? el("div", { class: "row" }, el("span", {}, "Humidity (return air)"), el("span", {}, val(p.humidity) + " % ", rhAbbr(false))) : null,
+      p.humidity ? el("div", { class: "row" }, el("span", {}, "Humidity (return air)"), el("span", { title: "Relative humidity of the air returning to this AHU (measured in the return duct)" }, val(p.humidity) + "%")) : null,
       el("div", { class: "row" }, el("span", {}, "Setpoint"), el("span", {}, val(p.setpoint) + " °F", ...(p.setpoint ? badges(p.setpoint.last_flags) : []))),
       (() => { const probs = fanProblems(a, p); const out = p.fanOut && p.fanOut.last_value != null && fanOn ? ` (${Number(p.fanOut.last_value).toFixed(0)} %)` : "";
         return el("div", { class: "row" + (probs.length ? " bad" : "") }, el("span", {}, "Supply fan"), el("span", {}, p.fan ? (fanOn ? "On" : "Off") + out : "–", ...probs)); })(),
@@ -850,9 +850,10 @@ function mapGestures(wrap, box) {
   wrap.addEventListener("dblclick", (e) => { if (e.target.closest("button")) return; zoomAt(pos(e), state.mapView.z > 1 ? 1 : 3); });
   wrap.addEventListener("wheel", (e) => { if (!e.ctrlKey && state.mapView.z === 1) return; e.preventDefault(); zoomAt(pos(e), state.mapView.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }, { passive: false });
 }
-// "RH" with a hover explanation (Russ, 2026-11-06: "it should tell me what RH means")
+// the word "humidity" with a hover explanation (Russ, 2026-11-06: "it should tell me what RH means", then "instead of RH,
+// just put the word humidity" and the percent sign right after the number: "44% humidity")
 function rhAbbr(outdoor) {
-  return el("abbr", { title: outdoor ? "Relative humidity of the outdoor air (one sensor, shared by the three AHUs)" : "Relative humidity of the air returning to this AHU (measured in the return duct)" }, "RH");
+  return el("abbr", { title: outdoor ? "Relative humidity of the outdoor air (one sensor, shared by the three AHUs)" : "Relative humidity of the air returning to this AHU (measured in the return duct)" }, "humidity");
 }
 function drawSpots() {
   const box = $("#mapBox"); if (!box) return;
@@ -860,7 +861,7 @@ function drawSpots() {
   box.querySelectorAll("svg.spot-lines").forEach(s => s.remove());
   MAP.spots.forEach((s, i) => {
     const p = pt(s.point); const v = p ? fmtVal(p, p.last_value) : "–";
-    const h = s.hum ? pt(s.hum) : null; const rh = h && h.last_value != null ? ` · ${Number(h.last_value).toFixed(0)} % ` : "";
+    const h = s.hum ? pt(s.hum) : null; const rh = h && h.last_value != null ? ` · ${Number(h.last_value).toFixed(0)}% ` : "";
     box.append(el("div", { class: "spot" + (s.sm ? " sm" : ""), "data-i": i, style: `left:${s.x}%;top:${s.y}%;--sc:${s.sm ? css("--s7") : css(SERIES[i % SERIES.length])}`, title: p ? `${p.display_name}, ${ago(p.last_ts)}` : s.point },
       v + (p && p.kind === "analog" ? " " + unitLabel(p.units) : ""), el("small", {}, s.label + rh, rh ? rhAbbr(/OA-H$/.test(s.hum)) : null)));
   });
@@ -1143,12 +1144,12 @@ function ahuSvg(a) {
   s += label(927, 90, "THE ROOMS", "middle", 10, ink2, 700) + label(927, 102, a.where, "middle", 7.5);
   s += label(927, 150, num("ZN-T", 1), "middle", 26, ink, 700) + label(927, 164, "°F zone (ZN-T)", "middle", 9);
   s += label(927, 186, `setpoint ${num("ZNT-SP", 1, " °F")}`, "middle", 10, ink2, 600) + (has("EFFHTG-SP") ? label(927, 198, `heat below ${num("EFFHTG-SP", 0)} · cool above ${num("EFFCLG-SP", 0)}`, "middle", 7.5) : "");
-  s += label(927, 220, `${num("RA-H", 0, " %")} RH`, "middle", 12, ink2, 600) + label(927, 231, "humidity (return air)", "middle", 7.5);
+  s += label(927, 220, `${num("RA-H", 0, "%")} humidity`, "middle", 12, ink2, 600) + label(927, 231, "of the return air", "middle", 7.5);
   const bp = val("BLDG-P"), bpsp = val("BLDGP-SP");
   s += label(927, 258, bp == null ? "–" : `${bp >= 0 ? "+" : ""}${bp.toFixed(3)} in. w.c.`, "middle", 11, bp != null && bp < 0 ? bad : ink2, 600) + label(927, 269, `building pressure${bpsp != null ? ` (setpoint ${bpsp.toFixed(2)})` : ""}`, "middle", 7.5);
   if (bp != null && bp < 0) s += label(927, 281, "below outdoors: air is being sucked in", "middle", 7, bad);
   if (extra.dehum) { const rh = pt(extra.dehum + "RH Setpoint"), ds = pt(extra.dehum + "Dehumid Schedule");
-    if (rh) s += label(927, 300, `dehumidify ${ds && Number(ds.last_value) === 1 ? "ON" : "off"} · RH setpoint ${Number(rh.last_value).toFixed(0)} %`, "middle", 7.5, ds && Number(ds.last_value) === 1 ? blue : muted, 600); }
+    if (rh) s += label(927, 300, `dehumidify ${ds && Number(ds.last_value) === 1 ? "ON" : "off"} · humidity setpoint ${Number(rh.last_value).toFixed(0)}%`, "middle", 7.5, ds && Number(ds.last_value) === 1 ? blue : muted, 600); }
   // --- return side (top): rooms -> RA sensors -> smoke detector -> return fan -> tee: exhaust damper up to the louver, return damper down to the mixing box
   s += duct(`M 868 ${RY} H 300`, rfOn, retColor, rfSpd) + duct(`M 420 ${RY} V ${EY} H 60`, rfOn && (val("EAD-O") || 0) > 0, retColor, rfSpd);
   s += arrow(853, RY, "l") + arrow(690, RY, "l") + arrow(420, EY + 25, "u") + arrow(150, EY, "l");   // 853: clear of the RA-T value (Russ, 2026-11-06)
@@ -1173,7 +1174,7 @@ function ahuSvg(a) {
      + duct(`M 443 ${SY} H 553`, sfOn, heating ? red : purple, sfSpd) + duct(`M 553 ${SY} H 868`, sfOn, supColor, sfSpd);
   s += arrow(190, SY, "r") + arrow(620, SY, "r") + arrow(845, SY, "r");
   s += louver(60, SY, "intake louver");
-  s += tag(60, SY - 58, "T", `${num("OA-T", 1, " °F")}`, "r") + label(77, SY - 41, `outdoor air (OA-T) · ${num("OA-H", 0, " %")} RH`, "start", 8);
+  s += tag(60, SY - 58, "T", `${num("OA-T", 1, " °F")}`, "r") + label(77, SY - 41, `outdoor air (OA-T) · ${num("OA-H", 0, "%")} humidity`, "start", 8);
   s += damper(150, SY, val("OAD-O"), false, "outdoor damper", has("OAD-MINPOS") ? `minimum ${num("OAD-MINPOS", 0, " %")}` : "");
   s += label(225, SY - 24, "OUTDOOR AIR", "middle", 9, ink2, 600);
   // filter with its pressure drop
