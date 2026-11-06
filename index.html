@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Morris North HVAC</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
 <style>
   :root {
@@ -57,7 +58,7 @@
   .tile { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; cursor: pointer; background: var(--surface); position: relative; }
   .tile:hover { background: var(--hover); } .tile.sel { border-color: var(--ink); box-shadow: inset 3px 0 0 var(--sc, var(--ink)); }
   .tile .name { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile .val { font-size: 22px; font-weight: 650; margin: 2px 0; }
+  .tile .val { font-size: 22px; font-weight: 650; margin: 2px 0; } .tile .val.long { font-size: 15px; line-height: 1.3; }
   .tile .val small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
   .tile .meta { font-size: 11px; color: var(--muted); display:flex; gap:6px; flex-wrap: wrap; }
   .ahus { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
@@ -71,7 +72,6 @@
   .badge { font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); white-space: nowrap; }
   .badge.ovr { border-color: var(--warning); } .badge.unr, .badge.err, .badge.critical { border-color: var(--critical); color: var(--critical); }
   .badge.alm, .badge.warning { border-color: var(--serious); } .badge.ok { border-color: var(--good); color: var(--good); }
-  .grp { margin: 10px 0 4px; font-size: 13px; color: var(--muted); display:flex; align-items:center; gap:8px; }
   .chart { margin-bottom: 14px; }
   .chart h3 { font-size: 14px; margin: 0 0 4px; font-weight: 600; }
   .uplot { font-family: inherit; }
@@ -102,10 +102,24 @@
   .alert time { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 110px; }
   .msg { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
   .map { position: relative; display: inline-block; max-width: 100%; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
-  .map img { display: block; max-width: 100%; height: auto; }
-  .spot { position: absolute; transform: translate(-50%, -100%); background: var(--surface); border: 2px solid var(--sc, var(--s1)); border-radius: 10px; padding: 4px 9px; font-size: 14px; font-weight: 650; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.2); line-height: 1.2; }
-  .spot small { display:block; font-size: 10px; font-weight: 400; color: var(--muted); }
-  .spot::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 10px; height: 10px; background: var(--sc, var(--s1)); border-radius: 50%; transform: translateX(-50%); }
+  .map img { display: block; max-width: 100%; max-height: calc(100vh - 150px); width: auto; height: auto; }
+  .spot { position: absolute; transform: translate(-50%, -50%); background: var(--surface); border: 3px solid var(--sc, var(--s1)); border-radius: 16px; padding: 8px 18px; font-size: 28px; font-weight: 650; white-space: nowrap; box-shadow: 0 3px 12px rgba(0,0,0,.25); line-height: 1.15; text-align: center; }
+  .spot small { display:block; font-size: 14px; font-weight: 400; color: var(--muted); }
+  @media (max-width: 700px) { .spot { font-size: 20px; padding: 4px 10px; border-radius: 10px; border-width: 2px; } .spot small { font-size: 11px; } .map img { max-height: none; } }
+  hr.sep { border: 0; border-top: 2px solid var(--axis); margin: 20px 0 14px; }
+  .boilers { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; text-align: center; }
+  .boiler h3 { margin: 0 0 6px; font-size: 15px; }
+  .boiler .t { font-size: 30px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; } .boiler .lbl { font-size: 12px; color: var(--muted); }
+  .boiler img { height: 200px; width: auto; margin: 6px auto; display: block; }
+  summary::-webkit-details-marker { display: none; }
+  details.sec { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
+  details.sec > summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.sec > summary::before { content: "▸"; font-size: 12px; } details.sec[open] > summary::before { content: "▾"; }
+  details.sec > .body { margin-top: 8px; }
+  details.grp { border-top: 1px solid var(--grid); padding: 6px 0; }
+  details.grp > summary { cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+  details.grp > summary::before { content: "▸"; font-size: 12px; color: var(--muted); } details.grp[open] > summary::before { content: "▾"; }
+  details.grp > .tiles { margin-top: 6px; }
   .coords { position: absolute; right: 8px; bottom: 8px; font: 12px/1.2 monospace; background: rgba(0,0,0,.65); color: #fff; padding: 3px 6px; border-radius: 6px; pointer-events: none; }
   .sched-card { border-top: 5px solid var(--ac, var(--border)); border-radius: 18px; }
   .sched { display: grid; grid-template-columns: 38px 1fr minmax(150px, 0.55fr); gap: 7px 10px; align-items: center; font-size: 13px; }
@@ -152,9 +166,9 @@ const AHUS = [
 const MAP = {
   bucket: "web", image: "map.png",
   spots: [
-    { label: "Kitchen and Dining", point: "FEC-7.ZN-T", x: 47, y: 33 },
-    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 42, y: 66 },
-    { label: "Worship", point: "FEC-8.ZN-T", x: 77, y: 70 },
+    { label: "Kitchen and Dining", point: "FEC-7.ZN-T", x: 43, y: 38 },
+    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 49, y: 68 },
+    { label: "Worship", point: "FEC-8.ZN-T", x: 79, y: 72 },
   ],
 };
 
@@ -178,7 +192,22 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["sched", "Schedule"], ["map", "Map"], ["details", "Details"], ["audit", "Audit Changes"]];
+// Tab order as Russ wants it (2026-11-05): Temperature, Map, Schedule, Details, Audit Changes.
+const TABS = [["temp", "Temperature"], ["map", "Map"], ["sched", "Schedule"], ["details", "Details"], ["audit", "Audit Changes"]];
+// Friendlier words for some of the engine's state texts
+const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
+// Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
+// logged data 2026-11-05: AV-303/403 = boiler outlet, AV-305 = boiler 1 inlet (tracks the loop return),
+// AV-308/408 = fire rate %. Boiler 2's inlet/header registers read a constant 250/246 = no sensor connected.)
+const BOILERS = [
+  { name: "Boiler-1", supply: "Boiler-1&2.AV-303", ret: "Boiler-1&2.AV-305", fire: "Boiler-1&2.AV-308" },
+  { name: "Boiler-2", supply: "Boiler-1&2.AV-403", ret: "Local Application.HWR-T", retNote: "loop return, boiler 2 has no return sensor", fire: "Boiler-1&2.AV-408" },
+];
+// Details tab: names for the engine's controller groups, in display order
+const GROUPS = { "FEC-6": "AHU-1 - Fellowship Area, Main Entry", "FEC-7": "AHU-2 - Kitchen and Dining", "FEC-8": "AHU-3 - Worship Area", "AHU-3 Folder": "AHU-3 dehumidification",
+  "Local Application": "Boilers and hot water loop", "Boiler-1&2": "Boiler gateway (raw values from the boilers)", "FEC-5": "In-floor heating zones (FEC-5)",
+  "FEC-9": "Exhaust fans and RCP-1/2 (FEC-9)", "FEC-10": "Zone controller FEC-10" };
+const GROUP_ORDER = ["FEC-6", "FEC-7", "FEC-8", "AHU-3 Folder", "Local Application", "Boiler-1&2", "FEC-5", "FEC-9", "FEC-10"];
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const demo = new URLSearchParams(location.search).get("demo") === "1";
 const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -187,7 +216,7 @@ const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); r
 const state = { sb: null, user: null, points: [], byId: new Map(), byName: new Map(), sel: store.get("sel", []), range: store.get("range", "24h"),
                 tab: store.get("tab", "temp"), table: false, charts: [], data: null, timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null,
                 tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h"),
-                tempSmooth: store.get("tempSmooth", true), scheds: [] };
+                tempSmooth: store.get("tempSmooth", true), scheds: [], imgs: {} };
 
 // ------------------------------------------------------------------ theme
 const applyTheme = () => { const t = store.get("theme", null); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
@@ -303,7 +332,7 @@ async function deleteRule(id) {
 function fmtVal(p, v) {
   if (v === null || v === undefined || Number.isNaN(v)) return "–";
   if (p.kind === "binary") { const t = p.state_texts; return t && t[v] ? t[v] : (v ? "On" : "Off"); }
-  if (p.kind === "multistate") { const t = p.state_texts; return t && t[v - 1] ? t[v - 1] : `state ${v}`; }
+  if (p.kind === "multistate") { const t = p.state_texts; const s = t && t[v - 1]; return s ? (STATE_WORDS[s] || s) : `state ${v}`; }
   return Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1);
 }
 function unitLabel(u) { if (!u || u === "no-units") return ""; return { "degrees-fahrenheit": "°F", "degrees-celsius": "°C", "percent": "%", "percent-relative-humidity": "% RH",
@@ -364,9 +393,24 @@ function renderTemperature() {
   const filters = el("div", { class: "filters" }, ...ahuChecks, el("span", { style: "width:8px" }), ...kindChecks, el("span", { style: "width:8px" }), rangeBtns,
     el("label", { class: "chk", title: "Average each minute with the minutes around it so sensor jitter does not show" }, smoothCb, "Smooth"),
     el("span", { class: "hint" }, state.tempRange === "24h" ? "1-minute values, refreshes every minute" : state.tempRange === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
-  screen(cards, el("div", { class: "card chart temp" }, el("h3", {}, "°F"), filters, el("div", { id: "tempChart" })));
-  renderAhuCards();
+  screen(cards, el("div", { class: "card chart temp" }, el("h3", {}, "°F"), filters, el("div", { id: "tempChart" })),
+         el("div", { class: "card", style: "border-radius: 18px" }, el("h2", {}, "Boilers"), el("div", { class: "boilers", id: "boilers" })));
+  renderAhuCards(); renderBoilers();
+  imageUrl("boiler.png").then(u => { state.boilerImg = u; document.querySelectorAll("#boilers img").forEach(i => { i.src = u; }); });
   refreshTemperature();
+}
+function renderBoilers() {
+  const box = $("#boilers"); if (!box) return; box.replaceChildren();
+  const deg = (p) => p && p.last_value != null ? Number(p.last_value).toFixed(1) + " °F" : "–";
+  for (const b of BOILERS) {
+    const s = pt(b.supply), r = pt(b.ret), f = pt(b.fire);
+    const firing = f && f.last_value != null ? (Number(f.last_value) > 0 ? `firing at ${Number(f.last_value).toFixed(0)} %` : "idle") : "";
+    box.append(el("div", { class: "boiler" }, el("h3", {}, b.name),
+      el("div", { class: "t" }, deg(s)), el("div", { class: "lbl" }, "supply"),
+      el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }),
+      el("div", { class: "t" }, deg(r)), el("div", { class: "lbl" }, b.retNote ? `return (${b.retNote})` : "return"),
+      el("div", { class: "hint", style: "margin-top:4px" }, firing)));
+  }
 }
 function renderAhuCards() {
   const box = $("#ahuCards"); if (!box) return; box.replaceChildren();
@@ -390,7 +434,7 @@ async function refreshTemperature() {
   holder.classList.add("dim");
   try {
     await Promise.all([loadStatus(), demo ? null : loadPoints()]);
-    renderStatus(); renderAhuCards();
+    renderStatus(); renderAhuCards(); renderBoilers();
     const series = [];
     AHUS.forEach((a, i) => {
       if (!state.tempAhus.includes(a.key)) return;
@@ -451,7 +495,11 @@ function drawChart(holder, built, o = {}) {
     data.push(s.ys);
     opts.series.push({ label: s.label, stroke: s.color, width: s.width || 2, dash: s.dash, spanGaps: false,
       paths: stepped ? uPlot.paths.stepped({ align: 1 }) : (o.curved ? uPlot.paths.spline() : undefined),
-      value: (u, v) => v == null ? "–" : fmtVal(s.p, v) + (s.p && s.p.kind === "analog" ? " " + unitLabel(s.p.units) : "") });
+      value: (u, v, si) => {
+        // no cursor on the chart: show the newest value instead of a dash
+        if (v == null && u.cursor.idx == null) { const ys = u.data[si]; for (let i = ys.length - 1; i >= 0; i--) if (ys[i] != null) { v = ys[i]; break; } }
+        return v == null ? "–" : fmtVal(s.p, v) + (s.p && s.p.kind === "analog" ? " " + unitLabel(s.p.units) : "");
+      } });
     if (s.mins) {
       const lo = data.length, hi = lo + 1; data.push(s.mins, s.maxs);
       opts.series.push({ label: s.label + " min", stroke: s.color, width: 0, value: (u, v) => v == null ? "–" : fmtVal(s.p, v) },
@@ -468,6 +516,16 @@ function fmtNum(v) { return v == null ? "" : Math.abs(v) >= 100 ? v.toFixed(0) :
 function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
 window.addEventListener("resize", () => { state.charts.forEach(c => c.setSize({ width: Math.min(c.root.parentElement.clientWidth, 1360), height: c.height })); });
 
+// ------------------------------------------------------------------ pictures (private storage bucket, signed links)
+async function imageUrl(name) {
+  if (demo) return name;
+  const c = state.imgs[name]; if (c && c.exp > Date.now()) return c.url;
+  const { data, error } = await state.sb.storage.from(MAP.bucket).createSignedUrl(name, 3600);
+  const url = error || !data ? name : data.signedUrl;
+  state.imgs[name] = { url, exp: Date.now() + 50 * 60000 };
+  return url;
+}
+
 // ------------------------------------------------------------------ Map tab
 function renderMap() {
   const box = el("div", { class: "map", id: "mapBox" });
@@ -477,8 +535,7 @@ function renderMap() {
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
     `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
   img.onload = () => drawSpots();
-  if (demo) img.src = MAP.image;
-  else state.sb.storage.from(MAP.bucket).createSignedUrl(MAP.image, 3600).then(({ data, error }) => { img.src = error || !data ? MAP.image : data.signedUrl; });
+  imageUrl(MAP.image).then(u => { img.src = u; });
   box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
   box.append(img, coords);
   screen(note, box);
@@ -548,7 +605,11 @@ async function refreshSchedule() {
       note.textContent = `Weekly schedules as programmed in the Johnson Controls engine (read ${ago(latest)}; checked again every hour). To change one, use Metasys: this page only shows them.`;
     }
     const now = new Date(); const todayIdx = (now.getDay() + 6) % 7; const nowMin = now.getHours() * 60 + now.getMinutes();
+    // the three air-handler schedules first, everything else below a line
+    const isMain = (s) => /^AHU-\d Schedule$/.test(s.name);
+    scheds.sort((a, b) => (isMain(b) - isMain(a)) || a.name.localeCompare(b.name));
     scheds.forEach((s, i) => {
+      if (!isMain(s) && (i === 0 || isMain(scheds[i - 1]))) list.append(el("hr", { class: "sep" }), el("div", { class: "hint", style: "margin-bottom:10px" }, "Other schedules in the engine"));
       const color = schedColor(s, i); const d = s.data || {}; const weekly = d.weekly || [];
       const target = s.target_point_id ? state.byId.get(s.target_point_id) : null;
       const nowVal = target && target.last_value != null ? target.last_value : s.present_value;
@@ -628,8 +689,11 @@ function renderDetails() {
   const tableBtn = el("button", { class: state.table ? "on" : "", onclick: () => { state.table = !state.table; renderDetails(); } }, "Table");
   const filters = el("div", { class: "filters" }, rangeBtns, picker, tableBtn, el("button", { onclick: downloadCsv }, "CSV"), el("button", { onclick: () => refreshAll() }, "Refresh"),
     el("span", { class: "hint" }, state.range === "24h" ? "1-minute values, refreshes every minute" : state.range === "1y" ? "hourly averages with min–max band" : "15-minute averages with min–max band"));
-  screen(filters, el("div", { id: "charts" }), el("div", { class: "card", id: "controls" }), el("div", { class: "card", id: "tiles" }),
-         el("div", { class: "card", id: "alerts" }), el("div", { class: "card", id: "rules" }));
+  screen(section("trends", "Trends", true, filters, el("div", { id: "charts" })),
+         section("controls", "Set from here", true, el("div", { id: "controls" })),
+         section("values", "Current values", true, el("div", { class: "hint" }, "Every logged point, by equipment. Click a value to add it to the trend chart; click a heading to open or close that group."), el("div", { id: "tiles" })),
+         section("alerts", "Alerts", true, el("div", { id: "alerts" })),
+         section("rules", "Alert rules", false, el("div", { id: "rules" })));
   buildPicker(); buildTiles(); renderExtras();
   document.addEventListener("click", (e) => { if (!e.target.closest("#picker")) $("#picklist")?.classList.remove("open"); });
   refreshAll();
@@ -655,22 +719,41 @@ function toggleSel(id, cb) {
   $("#picker > button").textContent = `Points (${state.sel.length}) ▾`;
   buildTiles(); refreshAll();
 }
+function section(key, title, openByDefault, ...body) {
+  const d = el("details", { class: "sec" }, el("summary", {}, title), el("div", { class: "body" }, ...body));
+  d.open = store.get("sec." + key, openByDefault);
+  d.addEventListener("toggle", () => store.set("sec." + key, d.open));
+  return d;
+}
+function tileRank(p) {
+  // temperatures first, then setpoints, then on/off and state points, then the rest
+  const n = p.display_name.split(".").pop();
+  if (p.units === "degrees-fahrenheit" && !/-SP$/.test(n)) return 0;
+  if (/-SP$/.test(n)) return 1;
+  if (p.kind !== "analog") return 2;
+  return 3;
+}
 function buildTiles() {
   const box = $("#tiles"); if (!box) return;
-  box.replaceChildren(el("h2", {}, "Current values"), el("span", { class: "hint" }, "click a tile to chart it"));
+  box.replaceChildren();
   const groups = new Map();
   for (const p of state.points) { if (!groups.has(p.group_name)) groups.set(p.group_name, []); groups.get(p.group_name).push(p); }
-  for (const [g, pts] of groups) {
-    box.append(el("div", { class: "grp" }, g || "(other)"));
+  const keys = [...groups.keys()].sort((a, b) => { const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || String(a).localeCompare(String(b)); });
+  for (const g of keys) {
+    const pts = groups.get(g).slice().sort((a, b) => tileRank(a) - tileRank(b) || a.display_name.localeCompare(b.display_name));
     const grid = el("div", { class: "tiles" });
     for (const p of pts) {
       const c = colorOf(p.id);
+      const short = g && p.display_name.startsWith(g + ".") ? p.display_name.slice(g.length + 1) : p.display_name;
       grid.append(el("div", { class: "tile" + (c ? " sel" : ""), style: c ? `--sc:${c}` : "", onclick: () => toggleSel(p.id) },
-        el("div", { class: "name", title: p.display_name }, p.display_name, p.command_rule ? " ⚙" : ""),
-        el("div", { class: "val" }, fmtVal(p, p.last_value), el("small", {}, p.kind === "analog" ? unitLabel(p.units) : "")),
+        el("div", { class: "name", title: p.display_name }, short, p.command_rule ? " ⚙" : ""),
+        el("div", { class: "val" + (fmtVal(p, p.last_value).length > 11 ? " long" : "") }, fmtVal(p, p.last_value), el("small", {}, p.kind === "analog" ? unitLabel(p.units) : "")),
         el("div", { class: "meta" }, ago(p.last_ts), ...badges(p.last_flags))));
     }
-    box.append(grid);
+    const d = el("details", { class: "grp" }, el("summary", {}, GROUPS[g] || g || "(other)", el("span", { class: "hint" }, `${pts.length} points`)), grid);
+    d.open = store.get("grp." + g, /^FEC-[678]$/.test(String(g)));
+    d.addEventListener("toggle", () => store.set("grp." + g, d.open));
+    box.append(d);
   }
 }
 async function refreshAll() {
@@ -732,7 +815,7 @@ function renderControls() {
   const pts = state.points.filter(p => p.command_rule);
   if (!pts.length) { box.style.display = "none"; return; }
   box.style.display = "";
-  box.replaceChildren(el("h2", {}, "Set from here"), el("div", { class: "hint" },
+  box.replaceChildren(el("div", { class: "hint" },
     "Changes are operator overrides (priority 8) written to the Johnson Controls engine within a minute. \"Release\" hands the point back to its schedule. Every change is logged with your name."));
   for (const p of pts) {
     const rule = p.command_rule; const last = state.cmds.find(c => c.point_id === p.id);
@@ -779,7 +862,7 @@ function watchCommands() {
 }
 function renderAlerts() {
   const box = $("#alerts"); if (!box) return;
-  box.replaceChildren(el("h2", {}, "Alerts"));
+  box.replaceChildren();
   if (!state.alerts.length) { box.append(el("div", { class: "hint" }, "No alerts so far.")); return; }
   for (const a of state.alerts) {
     box.append(el("div", { class: "alert" }, el("time", {}, when(a.ts)), el("span", { class: "badge " + a.level }, a.level), el("span", {}, a.message),
@@ -788,7 +871,7 @@ function renderAlerts() {
 }
 function renderRules() {
   const box = $("#rules"); if (!box) return;
-  box.replaceChildren(el("h2", {}, "Alert rules"), el("div", { class: "hint" }, "An alert fires when the condition has held for the given minutes, and clears by itself. Critical and warning go to phone and email; info to phone only."));
+  box.replaceChildren(el("div", { class: "hint" }, "An alert fires when the condition has held for the given minutes, and clears by itself. Critical and warning go to phone and email; info to phone only."));
   const t = el("table", { class: "rules" }, el("thead", {}, el("tr", {}, el("th", {}, "Name"), el("th", {}, "Point"), el("th", {}, "Condition"), el("th", {}, "Value"), el("th", {}, "Point 2"), el("th", {}, "Minutes"), el("th", {}, "Level"), el("th", {}, "On"), el("th", {}, ""))));
   const b = el("tbody");
   const rows = [...state.rules, { id: null, name: "", point_id: state.points[0]?.id, condition: "below", threshold: null, point2_id: null, for_minutes: 15, level: "warning", enabled: true, _new: true }];
@@ -833,7 +916,9 @@ function demoPoints() {
     out.push(mk(id++, `${fec}.ZN-TOCC`, fec, "binary", null, 0, 0, ["Inactive", "Active"], { values: [0, 1], priority: 8, label: "Temporary occupancy" }));
     out.push(mk(id++, `${fec}.OCC-SCHEDULE`, fec, "multistate", null, 2, 0, ["Occupied", "UnOccupied", "Standby", "Not Set"]));
   });
-  out.push(mk(id++, "Boiler-1&2.AV-303", "Boiler-1&2", "analog", "no-units", 103));
+  for (const [n, v] of [["AV-303", 123.0], ["AV-305", 118.4], ["AV-308", 100], ["AV-403", 112.2], ["AV-408", 0]]) out.push(mk(id++, `Boiler-1&2.${n}`, "Boiler-1&2", "analog", "no-units", v));
+  out.push(mk(id++, "Local Application.HWS-T", "Local Application", "analog", "degrees-fahrenheit", 123.6));
+  out.push(mk(id++, "Local Application.HWR-T", "Local Application", "analog", "degrees-fahrenheit", 119.1));
   return out;
 }
 function demoExtras() {
