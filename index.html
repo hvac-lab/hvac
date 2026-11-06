@@ -49,7 +49,7 @@
   button.danger { color: var(--critical); }
   button.google { display:inline-flex; align-items:center; gap:10px; padding: 10px 18px; font-weight: 600; font-size: 16px; background: var(--surface); }
   button.google svg { width: 20px; height: 20px; }
-  table.admin td.email { overflow-wrap: anywhere; }
+  table.admin td.email { overflow-wrap: anywhere; } table.admin td.act { white-space: nowrap; }
   table.admin form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .adminAdd { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top: 10px; }
   .adminAdd input[type=text] { padding: 8px 10px; font-size: 16px; }   /* 16px keeps iPhones from zooming into the field */
@@ -151,7 +151,8 @@
     table.audit .badge, table.vals .badge { white-space: normal; font-size: 9px; padding: 0 4px; line-height: 1.2; }
     table.audit td.ctr, table.audit th.ctr, table.vals td.num, table.vals th.num { white-space: normal; } table.vals td.hint { font-size: 9px; }
     table.audit pre { font-size: 9px !important; }
-    table.admin { font-size: 11px; } table.admin th, table.admin td { padding: 3px 4px; } table.admin .by { display: none; } }
+    table.admin { font-size: 11px; } table.admin th, table.admin td { padding: 3px 4px; } table.admin .by { display: none; }
+    table.admin td.act { white-space: normal; } table.admin td.act button { display: block; margin: 2px 0; } }
 </style>
 </head>
 <body>
@@ -928,16 +929,33 @@ async function refreshAdmin(note) {
       const self = u.email.toLowerCase() === me;
       const rm = el("button", { class: "small danger", title: self ? "You cannot remove yourself" : "Remove " + u.email }, "Remove");
       if (self) rm.disabled = true;
+      const edit = el("button", { class: "small", title: "Change the name or the admin flag" }, "Edit");
+      const noteCell = el("td", {}, u.note || "");
+      const admCell = el("td", { class: "ctr", "data-sort": u.is_admin ? 1 : 0 }, u.is_admin ? el("span", { class: "badge ok" }, "admin") : "");
+      const cell = el("td", { class: "act" }, edit, " ", rm);
+      const restore = () => cell.replaceChildren(edit, " ", rm);
       // two clicks to remove: the button turns into "Really remove?" with a Cancel beside it (no pop-up dialogs)
-      const cell = el("td", {}, rm);
       rm.onclick = () => {
         const yes = el("button", { class: "small danger", onclick: async () => { yes.disabled = true;
           try { await adminCall("hvac_admin_remove_user", { p_email: u.email }); refreshAdmin(`${u.email} removed.`); }
           catch (e) { refreshAdmin("Could not remove: " + (e.message || e)); } } }, "Really remove?");
-        cell.replaceChildren(yes, " ", el("button", { class: "small", onclick: () => cell.replaceChildren(rm) }, "Cancel"));
+        cell.replaceChildren(yes, " ", el("button", { class: "small", onclick: restore }, "Cancel"));
       };
-      b.append(el("tr", {}, el("td", { class: "email" }, u.email, self ? el("span", { class: "hint" }, " (you)") : null), el("td", {}, u.note || ""),
-        el("td", { class: "ctr", "data-sort": u.is_admin ? 1 : 0 }, u.is_admin ? el("span", { class: "badge ok" }, "admin") : ""),
+      // Edit: the name and admin cells become fields, Save writes them through the same server function as Add
+      // (Russ, 2026-11-06: "add/remove admin permissions ... an edit button"). You cannot take admin away from yourself.
+      edit.onclick = () => {
+        const nameIn = el("input", { type: "text", value: u.note || "", placeholder: "name", style: "width:140px;max-width:100%;padding:4px 6px" });
+        const admIn = el("input", { type: "checkbox", title: self ? "You cannot take admin away from yourself" : "" }); admIn.checked = !!u.is_admin; if (self) admIn.disabled = true;
+        const save = el("button", { class: "small primary", style: "padding:3px 10px", onclick: async () => { save.disabled = true;
+          try { await adminCall("hvac_admin_add_user", { p_email: u.email, p_note: nameIn.value.trim() || null, p_admin: admIn.checked }); refreshAdmin(`${u.email} updated.`); }
+          catch (e) { refreshAdmin("Could not save: " + (e.message || e)); } } }, "Save");
+        const cancel = el("button", { class: "small", onclick: () => refreshAdmin() }, "Cancel");
+        nameIn.addEventListener("keydown", (e) => { if (e.key === "Enter") save.click(); if (e.key === "Escape") cancel.click(); });
+        noteCell.replaceChildren(nameIn); admCell.replaceChildren(el("label", {}, admIn, " admin"));
+        cell.replaceChildren(save, " ", cancel);
+        nameIn.focus();
+      };
+      b.append(el("tr", {}, el("td", { class: "email" }, u.email, self ? el("span", { class: "hint" }, " (you)") : null), noteCell, admCell,
         el("td", { "data-sort": u.added_at || "" }, u.added_at ? when(u.added_at) : ""), el("td", { class: "email by" }, u.added_by || ""), cell));
     }
     t.append(b); box.append(el("div", { class: "tablewrap" }, t)); sortable(t, "admin");
@@ -955,8 +973,8 @@ async function refreshAdmin(note) {
     } }, "Add");
     email.addEventListener("keydown", (e) => { if (e.key === "Enter") add.click(); });
     box.append(el("div", { class: "adminAdd" }, email, name, el("label", { class: "chk" }, adm, " admin"), add, msg),
-      el("p", { class: "hint", style: "margin:8px 0 0" }, "Use the address of the person's Google account. An admin can add and remove people and make other admins; ",
-        "adding an address that is already listed updates its name and admin flag."));
+      el("p", { class: "hint", style: "margin:8px 0 0" }, "Use the address of the person's Google account. An admin can add and remove people and, with Edit, ",
+        "change a name or give or take the admin flag (not their own). Adding an address that is already listed updates it the same way."));
   } catch (e) { box.replaceChildren(el("b", {}, "Could not load the list: "), String(e.message || e)); }
 }
 
