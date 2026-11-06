@@ -108,6 +108,11 @@
   .mapfit { overflow: hidden; position: relative; touch-action: pan-y; }   /* pan-y: the page still scrolls over the plan; a two-finger pinch reaches mapGestures */
   .mapfit.zoomed { touch-action: none; cursor: grab; }
   .mapfit .mapreset { position: absolute; right: 8px; top: 8px; z-index: 2; }
+  /* "Full screen": the plan alone fills the whole screen (fixed over the page, or the browser's own full-screen mode
+     where it exists), fitted both ways and centred, so a phone can give it everything (Russ, 2026-11-06 evening) */
+  .mapfit .mapfs { position: absolute; left: 8px; top: 8px; z-index: 2; }
+  .mapfit.fs { position: fixed; inset: 0; z-index: 100; height: 100vh !important; height: 100dvh !important; background: var(--page); touch-action: none; }
+  html.noscroll { overflow: hidden; }
   /* Boiler room drawing: pipes with moving dashes where water is being pumped */
   .broom svg { max-width: 1100px; margin: 0 auto; }
   .ahusvg svg, .loopsvg svg, .fansvg svg { max-width: 1100px; margin: 0 auto; }
@@ -156,11 +161,16 @@
   .sched .now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--critical); }
   .sched .times { grid-column: 3; font-size: 12px; color: var(--ink-2); }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
-  @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } nav.tabs button { padding: 8px 10px; }
+  @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
+    /* Phone header and tabs take as little height as possible (Russ, 2026-11-06 evening: the tabs took half the screen
+       and the status / email / sign-out another quarter, leaving little for the floor plan): the email is hidden, the
+       status pill is small and the tabs sit in ONE row that scrolls sideways (the open tab is scrolled into view). */
+    #who { display: none; } .pill { font-size: 11px; padding: 2px 8px; } header button { padding: 4px 8px; font-size: 13px; }
+    nav.tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 6px 8px 0; } nav.tabs::-webkit-scrollbar { display: none; }
+    nav.tabs button { white-space: nowrap; flex: 0 0 auto; padding: 7px 10px; font-size: 14px; }
     /* Audit and Details tables on a phone: every column, Description included, on the screen at once in small print;
        pinch to zoom in to read (Russ, 2026-11-06: the What column took the room and Equipment / Description needed
        scrolling; on Details "the description is the most important thing to see") */
-    nav.tabs { flex-wrap: wrap; } nav.tabs button { white-space: nowrap; }
     table.audit, table.vals { font-size: 9px; } table.audit th, table.audit td, table.vals th, table.vals td { padding: 2px 3px; }
     table.audit .badge, table.vals .badge { white-space: normal; font-size: 9px; padding: 0 4px; line-height: 1.2; }
     table.audit td.ctr, table.audit th.ctr, table.vals td.num, table.vals th.num { white-space: normal; } table.vals td.hint { font-size: 9px; }
@@ -499,6 +509,7 @@ function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
   if (state.tab === "admin" && !state.admin) state.tab = "temp";
   for (const [key, label] of TABS) if (key !== "admin" || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+  const on = nav.querySelector("button.on"); if (on && nav.scrollWidth > nav.clientWidth) on.scrollIntoView({ block: "nearest", inline: "center" });   // phone: one scrolling row
 }
 function renderTab() {
   clearTimeout(state.timer); clearInterval(state.cmdTimer);
@@ -783,16 +794,21 @@ function renderMap() {
 function fitMap() {
   const box = $("#mapBox"); const wrap = box && box.parentElement; if (!box || !wrap) return;
   const v = state.mapView || (state.mapView = { z: 1, tx: 0, ty: 0, k: 1 });
-  v.k = Math.min(1, wrap.clientWidth / box.offsetWidth);
-  wrap.style.height = Math.round(box.offsetHeight * v.k) + "px";
+  if (wrap.classList.contains("fs")) {   // full screen: fit both ways (may enlarge), the frame is the screen
+    wrap.style.height = ""; v.k = Math.min(wrap.clientWidth / box.offsetWidth, wrap.clientHeight / box.offsetHeight);
+  } else {
+    v.k = Math.min(1, wrap.clientWidth / box.offsetWidth);
+    wrap.style.height = Math.round(box.offsetHeight * v.k) + "px";
+  }
   setMapView(v.z, v.tx, v.ty);
 }
 function setMapView(z, tx, ty) {
   const box = $("#mapBox"); const wrap = box && box.parentElement; if (!box || !wrap) return;
   const v = state.mapView; v.z = Math.max(1, Math.min(8, z));
   const s = v.k * v.z, cw = box.offsetWidth * s, ch = box.offsetHeight * s;
-  v.tx = v.z === 1 ? 0 : Math.min(0, Math.max(wrap.clientWidth - cw, tx));
-  v.ty = v.z === 1 ? 0 : Math.min(0, Math.max(wrap.clientHeight - ch, ty));
+  // smaller than the frame: centred; bigger: no gap at any edge
+  v.tx = cw <= wrap.clientWidth ? (wrap.clientWidth - cw) / 2 : Math.min(0, Math.max(wrap.clientWidth - cw, tx));
+  v.ty = ch <= wrap.clientHeight ? (wrap.clientHeight - ch) / 2 : Math.min(0, Math.max(wrap.clientHeight - ch, ty));
   box.style.transformOrigin = "0 0"; box.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${s})`;
   wrap.classList.toggle("zoomed", v.z > 1);
   const r = wrap.querySelector(".mapreset"); if (r) r.style.display = v.z > 1 ? "" : "none";
@@ -802,6 +818,17 @@ function setMapView(z, tx, ty) {
 function mapGestures(wrap, box) {
   const pts = new Map(); let last = null;
   wrap.append(el("button", { class: "small mapreset", style: "display:none", onclick: () => setMapView(1, 0, 0) }, "fit to screen"));
+  // full screen: the plan alone, fitted to the whole screen (Russ, 2026-11-06 evening: on a phone the header and the
+  // tabs left too little room to pinch and zoom); the browser's own full-screen mode on top where it exists (not iPhone)
+  const fsBtn = el("button", { class: "small mapfs", onclick: () => toggleFs() }, "full screen");
+  const toggleFs = (on = !wrap.classList.contains("fs")) => {
+    wrap.classList.toggle("fs", on); document.documentElement.classList.toggle("noscroll", on); fsBtn.textContent = on ? "exit full screen" : "full screen";
+    if (on && wrap.requestFullscreen) wrap.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    setMapView(1, 0, 0); fitMap();
+  };
+  wrap.append(fsBtn);
+  wrap.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && wrap.classList.contains("fs")) toggleFs(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && wrap.isConnected && wrap.classList.contains("fs")) toggleFs(false); });
   const pos = (e) => { const r = wrap.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const zoomAt = (p, z) => { const v = state.mapView; const s = v.k * v.z; const nz = Math.max(1, Math.min(8, z)); const ns = v.k * nz;
     setMapView(nz, p.x - (p.x - v.tx) / s * ns, p.y - (p.y - v.ty) / s * ns); };
