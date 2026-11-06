@@ -107,7 +107,16 @@
   .spot small { display:block; font-size: 10px; font-weight: 400; color: var(--muted); }
   .spot::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 10px; height: 10px; background: var(--sc, var(--s1)); border-radius: 50%; transform: translateX(-50%); }
   .coords { position: absolute; right: 8px; bottom: 8px; font: 12px/1.2 monospace; background: rgba(0,0,0,.65); color: #fff; padding: 3px 6px; border-radius: 6px; pointer-events: none; }
-  @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } }
+  .sched-card { border-top: 5px solid var(--ac, var(--border)); border-radius: 18px; }
+  .sched { display: grid; grid-template-columns: 38px 1fr minmax(150px, 0.55fr); gap: 7px 10px; align-items: center; font-size: 13px; }
+  .sched .ticks { grid-column: 2; position: relative; height: 14px; font-size: 10px; color: var(--muted); }
+  .sched .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .sched .day { grid-column: 1; color: var(--ink-2); font-weight: 600; } .sched .day.today { color: var(--ink); text-decoration: underline; }
+  .sched .bar { grid-column: 2; position: relative; height: 22px; background: var(--grid); border-radius: 6px; }
+  .sched .seg { position: absolute; top: 0; bottom: 0; border-radius: 6px; opacity: .9; }
+  .sched .now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--critical); }
+  .sched .times { grid-column: 3; font-size: 12px; color: var(--ink-2); }
+  @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header h1 { font-size: 16px; } main { padding: 12px; } .tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } nav.tabs button { padding: 8px 10px; } }
 </style>
 </head>
@@ -137,14 +146,15 @@ const AHUS = [
   { key: "AHU-2", fec: "FEC-7", name: "AHU-2", where: "Kitchen and Dining" },
   { key: "AHU-3", fec: "FEC-8", name: "AHU-3", where: "Worship Area" },
 ];
-// Map tab: a picture of the building (map.png next to this file) and where to draw temperatures on it.
-// x/y are percent of the picture's width/height; the Map tab shows the pointer's x/y to help place them.
+// Map tab: the floor plan lives in the private Supabase storage bucket "web" as map.png (upload with
+// `cli upload-file web\map.png`); allowed users get a signed link. Spots: x/y in percent of the picture's
+// width/height (the Map tab shows the pointer's x/y to help place them). Floor plan from Russ, 2026-11-05.
 const MAP = {
-  image: "map.png",
+  bucket: "web", image: "map.png",
   spots: [
-    { label: "Fellowship", point: "FEC-6.ZN-T", x: 30, y: 40 },
-    { label: "Kitchen / Dining", point: "FEC-7.ZN-T", x: 60, y: 40 },
-    { label: "Worship", point: "FEC-8.ZN-T", x: 45, y: 72 },
+    { label: "Kitchen and Dining", point: "FEC-7.ZN-T", x: 47, y: 33 },
+    { label: "Fellowship Area", point: "FEC-6.ZN-T", x: 42, y: 66 },
+    { label: "Worship", point: "FEC-8.ZN-T", x: 77, y: 70 },
   ],
 };
 
@@ -168,7 +178,8 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["details", "Details"], ["map", "Map"]];
+const TABS = [["temp", "Temperature"], ["sched", "Schedule"], ["map", "Map"], ["details", "Details"], ["audit", "Audit Changes"]];
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const demo = new URLSearchParams(location.search).get("demo") === "1";
 const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                 set(k, v) { try { localStorage.setItem("hvac." + k, JSON.stringify(v)); } catch {} } };
@@ -176,7 +187,7 @@ const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); r
 const state = { sb: null, user: null, points: [], byId: new Map(), byName: new Map(), sel: store.get("sel", []), range: store.get("range", "24h"),
                 tab: store.get("tab", "temp"), table: false, charts: [], data: null, timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null,
                 tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h"),
-                tempSmooth: store.get("tempSmooth", true) };
+                tempSmooth: store.get("tempSmooth", true), scheds: [] };
 
 // ------------------------------------------------------------------ theme
 const applyTheme = () => { const t = store.get("theme", null); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
@@ -329,6 +340,8 @@ function renderTab() {
   renderTabs();
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
+  else if (state.tab === "sched") renderSchedule();
+  else if (state.tab === "audit") renderAudit();
   else renderTemperature();
 }
 
@@ -458,12 +471,14 @@ window.addEventListener("resize", () => { state.charts.forEach(c => c.setSize({ 
 // ------------------------------------------------------------------ Map tab
 function renderMap() {
   const box = el("div", { class: "map", id: "mapBox" });
-  const img = el("img", { src: MAP.image + "?v=" + Math.floor(Date.now() / 3600000), alt: "Building map" });
+  const img = el("img", { alt: "Building floor plan" });
   const coords = el("div", { class: "coords" }, "move the pointer over the picture for x / y");
-  const note = el("div", { class: "card hint" }, "Temperatures are drawn on the building picture (map.png next to this page). The numbers at bottom right of the picture are the pointer's position in percent; use them to place or move a spot.");
+  const note = el("div", { class: "card hint" }, "Current zone temperatures drawn on the floor plan; refreshes every minute. The numbers at bottom right of the picture are the pointer's position in percent, for placing a spot.");
   img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "),
-    "Add a file named map.png (or change MAP.image in index.html) to the website files, and the temperature spots will be drawn on it.")); };
+    `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) and the temperature spots will be drawn on it.`)); };
   img.onload = () => drawSpots();
+  if (demo) img.src = MAP.image;
+  else state.sb.storage.from(MAP.bucket).createSignedUrl(MAP.image, 3600).then(({ data, error }) => { img.src = error || !data ? MAP.image : data.signedUrl; });
   box.addEventListener("mousemove", (e) => { const r = img.getBoundingClientRect(); coords.textContent = `x ${((e.clientX - r.left) / r.width * 100).toFixed(1)}  y ${((e.clientY - r.top) / r.height * 100).toFixed(1)}`; });
   box.append(img, coords);
   screen(note, box);
@@ -482,6 +497,125 @@ async function refreshMap() {
   clearTimeout(state.timer);
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); drawSpots(); } catch {}
   state.timer = setTimeout(refreshMap, 60000);
+}
+
+// ------------------------------------------------------------------ Schedule tab (read from the engine's Schedule objects)
+function schedTitle(s) { const a = AHUS.find(x => s.name.startsWith(x.key + " ")); return a ? s.name.replace(a.key, `${a.name} - ${a.where}`) : s.name; }
+function schedColor(s, i) { const a = AHUS.findIndex(x => s.name.startsWith(x.key + " ")); return css(SERIES[a >= 0 ? a : 3 + (i % 5)]); }
+function schedLabel(s, v) {
+  // multistate targets count from 1 (Occupied, UnOccupied, Standby); binary targets from 0 (Inactive, Active)
+  if (v === null || v === undefined) return "–";
+  const p = s.target_point_id ? state.byId.get(s.target_point_id) : null; const t = p && p.state_texts;
+  if (t) return (p.kind === "binary" ? t[Number(v)] : t[Number(v) - 1]) ?? String(v);
+  return String(v);
+}
+function schedOn(s, v) { const l = schedLabel(s, v).toLowerCase(); return l === "occupied" || l === "active" || l === "on"; }
+const mins = (t) => { const [h, m] = String(t).split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+const fmtMin = (m) => { const h = Math.floor(m / 60) % 24, mm = m % 60; return `${h % 12 || 12}:${String(mm).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`; };
+function daySegments(entries, dflt) {
+  // BACnet: at midnight the schedule goes back to its default, then each time/value pair applies in order
+  let cur = dflt, start = 0; const segs = [];
+  for (const e of [...(entries || [])].sort((a, b) => mins(a.t) - mins(b.t))) {
+    const m = Math.min(1440, mins(e.t));
+    if (e.v !== cur) { if (m > start) segs.push({ s: start, e: m, v: cur }); start = m; cur = e.v; }
+  }
+  if (start < 1440) segs.push({ s: start, e: 1440, v: cur });
+  return segs;
+}
+async function loadSchedules() {
+  if (demo) { state.scheds = demoSchedules(); return; }
+  const { data, error } = await state.sb.from("hvac_schedules").select("*").order("name");
+  if (error) throw new Error("hvac_schedules: " + error.message);
+  state.scheds = data || [];
+}
+function renderSchedule() {
+  screen(el("div", { class: "card hint", id: "schedNote" }, "Loading schedules…"), el("div", { id: "schedList" }));
+  refreshSchedule();
+}
+async function refreshSchedule() {
+  clearTimeout(state.timer);
+  const list = $("#schedList"); if (!list) return;
+  try {
+    await Promise.all([loadStatus(), loadSchedules(), demo ? null : loadPoints()]);
+    renderStatus();
+    list.replaceChildren();
+    const scheds = state.scheds.filter(s => s.kind === "schedule").sort((a, b) => a.name.localeCompare(b.name));
+    const cals = state.scheds.filter(s => s.kind === "calendar" && (s.data?.dates || []).length);
+    const note = $("#schedNote");
+    if (!scheds.length) note.textContent = "No schedules yet: the poller reads them from the engine once an hour.";
+    else {
+      const latest = scheds.reduce((a, s) => (s.read_at > a ? s.read_at : a), "");
+      note.textContent = `Weekly schedules as programmed in the Johnson Controls engine (read ${ago(latest)}; checked again every hour). To change one, use Metasys: this page only shows them.`;
+    }
+    const now = new Date(); const todayIdx = (now.getDay() + 6) % 7; const nowMin = now.getHours() * 60 + now.getMinutes();
+    scheds.forEach((s, i) => {
+      const color = schedColor(s, i); const d = s.data || {}; const weekly = d.weekly || [];
+      const target = s.target_point_id ? state.byId.get(s.target_point_id) : null;
+      const nowVal = target && target.last_value != null ? target.last_value : s.present_value;
+      const card = el("div", { class: "card sched-card", style: `--ac:${color}` }, el("h2", {}, schedTitle(s)),
+        el("div", { class: "hint", style: "margin-bottom:8px" }, "now ", el("b", { style: "color:var(--ink)" }, schedLabel(s, nowVal)),
+          s.target_name ? ` · sets ${s.target_name}` : "", (d.exceptions || []).length ? ` · ${d.exceptions.length} holiday exception(s)` : " · no holiday exceptions"));
+      const grid = el("div", { class: "sched" },
+        el("div", { class: "ticks" }, ...[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => el("span", { style: `left:${h / 24 * 100}%` }, h % 24 === 0 ? "12 am" : h === 12 ? "noon" : h < 12 ? `${h} am` : `${h - 12} pm`))));
+      for (let di = 0; di < 7; di++) {
+        const segs = daySegments(weekly[di], d.default);
+        const bar = el("div", { class: "bar" });
+        for (const g of segs) if (schedOn(s, g.v)) bar.append(el("div", { class: "seg", style: `left:${g.s / 1440 * 100}%;width:${(g.e - g.s) / 1440 * 100}%;background:${color}`, title: `${fmtMin(g.s)} – ${fmtMin(g.e)} ${schedLabel(s, g.v)}` }));
+        if (di === todayIdx) bar.append(el("div", { class: "now", style: `left:${nowMin / 1440 * 100}%`, title: "now" }));
+        const on = segs.filter(g => schedOn(s, g.v)).map(g => `${fmtMin(g.s)} – ${fmtMin(g.e)}`);
+        grid.append(el("div", { class: "day" + (di === todayIdx ? " today" : ""), title: DAY_NAMES[di] }, DAY_NAMES[di].slice(0, 3)), bar, el("div", { class: "times" }, on.length ? on.join(", ") : "–"));
+      }
+      card.append(grid);
+      list.append(card);
+    });
+    if (cals.length) {
+      const c = el("div", { class: "card" }, el("h2", {}, "Holiday calendars"), el("div", { class: "hint" }, "Dates listed in the engine's calendar objects. They only matter when a schedule has a holiday exception that uses them."));
+      for (const k of cals) c.append(el("div", { class: "alert" }, el("b", {}, k.name), el("span", {}, k.description || ""),
+        el("span", { class: "hint" }, (k.data.dates || []).map(x => x.date || (x.dateRange ? `${x.dateRange.startDate} to ${x.dateRange.endDate}` : JSON.stringify(x))).join(", "))));
+      list.append(c);
+    }
+  } catch (e) { list.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load schedules: "), String(e.message || e))); }
+  state.timer = setTimeout(refreshSchedule, 60000);
+}
+
+// ------------------------------------------------------------------ Audit Changes tab
+async function loadChanges() {
+  if (demo) return demoChanges();
+  const { data, error } = await state.sb.from("hvac_changes").select("*").order("ts", { ascending: false }).limit(300);
+  if (error) throw new Error("hvac_changes: " + error.message);
+  return data || [];
+}
+function renderAudit() {
+  screen(el("div", { class: "card hint" }, "Every setting change the logger notices, newest first: setpoints and temporary-occupancy buttons (every minute), operator overrides, and schedule edits (checked hourly). ",
+      "Changes made from this site carry the person's email; \"Metasys\" means it was changed at the Metasys screen, a thermostat, or by a program in the engine."),
+    el("div", { class: "card", id: "auditList" }, "Loading…"));
+  refreshAudit();
+}
+async function refreshAudit() {
+  clearTimeout(state.timer);
+  const box = $("#auditList"); if (!box) return;
+  try {
+    const [rows] = await Promise.all([loadChanges(), loadStatus(), demo ? null : loadPoints()]);
+    renderStatus();
+    box.replaceChildren();
+    if (!rows.length) { box.append(el("div", { class: "hint" }, "No changes recorded yet. The log started when this version of the logger was installed.")); }
+    else {
+      const t = el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "When"), el("th", {}, "What"), el("th", {}, "Point"), el("th", {}, "From"), el("th", {}, "To"), el("th", {}, "By"))));
+      const b = el("tbody");
+      for (const c of rows) {
+        const p = c.point_id ? state.byId.get(c.point_id) : null;
+        const unit = p && p.kind === "analog" ? " " + unitLabel(p.units) : "";
+        const what = c.kind === "value" ? "setting changed" : c.kind === "override" ? (c.note || "override") : c.kind === "schedule" ? "schedule edited" : c.kind;
+        const by = c.source === "website" ? (c.who || "this site") : "Metasys";
+        const cell = (v) => c.kind === "schedule" ? el("pre", { style: "margin:0;font:12px/1.3 monospace;white-space:pre-wrap" }, v || "") : (v == null ? "–" : v + unit);
+        b.append(el("tr", {}, el("td", {}, when(c.ts)), el("td", {}, el("span", { class: "badge " + (c.kind === "override" ? "ovr" : c.kind === "schedule" ? "" : "ok") }, what)),
+          el("td", {}, c.point_name), el("td", { class: c.kind === "schedule" ? "" : "num" }, cell(c.old_value)), el("td", { class: c.kind === "schedule" ? "" : "num" }, cell(c.new_value)),
+          el("td", {}, by)));
+      }
+      t.append(b); box.append(el("div", { class: "tablewrap" }, t));
+    }
+  } catch (e) { box.replaceChildren(el("b", {}, "Could not load the change log: "), String(e.message || e)); }
+  state.timer = setTimeout(refreshAudit, 60000);
 }
 
 // ------------------------------------------------------------------ Details tab (the original page)
@@ -697,6 +831,7 @@ function demoPoints() {
     out.push(mk(id++, `${fec}.SF-S`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]));
     out.push(mk(id++, `${fec}.AHU-STATE`, fec, "multistate", null, 7 + i, 0, states));
     out.push(mk(id++, `${fec}.ZN-TOCC`, fec, "binary", null, 0, 0, ["Inactive", "Active"], { values: [0, 1], priority: 8, label: "Temporary occupancy" }));
+    out.push(mk(id++, `${fec}.OCC-SCHEDULE`, fec, "multistate", null, 2, 0, ["Occupied", "UnOccupied", "Standby", "Not Set"]));
   });
   out.push(mk(id++, "Boiler-1&2.AV-303", "Boiler-1&2", "analog", "no-units", 103));
   return out;
@@ -708,6 +843,21 @@ function demoExtras() {
   state.rules = [{ id: 1, name: "Freeze risk FEC-6 zone", point_id: 1, condition: "below", threshold: 55, for_minutes: 15, level: "critical", enabled: true },
                  { id: 2, name: "FEC-6 not holding setpoint", point_id: 1, point2_id: 3, condition: "deviation", threshold: 6, for_minutes: 120, level: "warning", enabled: true }];
   state.cmds = [{ id: 1, created_at: new Date(now - 7200e3).toISOString(), created_by: "russ@example.org", point_id: 3, value: 72, release: false, duration_min: 240, status: "done", result: "confirmed 72.0", released_at: null }];
+}
+function demoSchedules() {
+  const wk = (spec) => DAY_NAMES.map((_, i) => (spec[i] || []).map(([t, v]) => ({ t, v })));
+  const mk = (id, name, fec, dflt, spec) => ({ id, name, kind: "schedule", description: null, present_value: 2, target_point_id: pt(`${fec}.OCC-SCHEDULE`)?.id, target_name: `${fec}.OCC-SCHEDULE`,
+    read_at: new Date().toISOString(), data: { default: dflt, exceptions: [], weekly: wk(spec) } });
+  return [mk(600, "AHU-1 Schedule", "FEC-6", 1, { 0: [["00:00", 2]], 1: [["00:00", 2]], 2: [["00:00", 2], ["12:35", 1], ["21:25", 2]], 3: [["00:00", 2], ["06:00", 1], ["18:00", 2]], 4: [["00:00", 2]], 5: [["00:00", 2], ["12:50", 1], ["21:20", 2]], 6: [["00:00", 2], ["04:00", 1], ["16:30", 2]] }),
+          mk(601, "AHU-2 Schedule", "FEC-7", 2, { 3: [["06:00", 1], ["18:00", 2]], 5: [["14:05", 1], ["21:55", 2]], 6: [["04:00", 1], ["20:50", 2]] }),
+          mk(603, "AHU-3 Schedule", "FEC-8", 1, { 0: [["00:00", 2]], 1: [["00:00", 2], ["11:05", 1], ["13:00", 2]], 2: [["00:00", 2], ["11:25", 1], ["21:30", 2]], 3: [["00:00", 2], ["06:00", 1], ["18:00", 2]], 4: [["00:00", 2]], 5: [["00:00", 2], ["12:45", 1], ["21:00", 2]], 6: [["00:00", 2], ["04:00", 1], ["16:30", 2]] }),
+          { id: 615, name: "Sunday Calendar", kind: "calendar", description: "Wednesday Church - 1st & 3rd", present_value: 0, read_at: new Date().toISOString(), data: { dates: [{ date: "2021-8-3 tue" }, { date: "2021-8-17 tue" }] } }];
+}
+function demoChanges() {
+  const now = Date.now(); const sp = pt("FEC-6.ZNT-SP");
+  return [{ id: 3, ts: new Date(now - 1800e3).toISOString(), kind: "value", point_id: sp?.id, point_name: "FEC-6.ZNT-SP", old_value: "70", new_value: "72", source: "website", who: "russ@example.org", note: null },
+          { id: 2, ts: new Date(now - 7200e3).toISOString(), kind: "override", point_id: sp?.id, point_name: "FEC-6.ZNT-SP", old_value: "70", new_value: "70", source: "metasys", who: null, note: "override set" },
+          { id: 1, ts: new Date(now - 86400e3).toISOString(), kind: "schedule", point_id: 600, point_name: "AHU-1 Schedule", old_value: "  Wednesday  00:00 UnOccupied, 12:35 Occupied, 21:25 UnOccupied", new_value: "  Wednesday  00:00 UnOccupied, 12:00 Occupied, 21:25 UnOccupied", source: "metasys", who: null, note: "schedule edited in Metasys" }];
 }
 function demoRows(ids, r) {
   const step = r.table === "hvac_samples_1m" ? 60 : r.table === "hvac_rollup_15m" ? 900 : 3600; const n = Math.floor(r.sec / step); const now = Math.floor(Date.now() / 1000 / step) * step;
