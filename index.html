@@ -47,6 +47,12 @@
   button.primary { background: var(--s1); color: #fff; border-color: transparent; padding: 10px 18px; font-weight: 600; }
   button.small { padding: 3px 10px; font-size: 13px; }
   button.danger { color: var(--critical); }
+  button.google { display:inline-flex; align-items:center; gap:10px; padding: 10px 18px; font-weight: 600; font-size: 16px; background: var(--surface); }
+  button.google svg { width: 20px; height: 20px; }
+  table.admin td.email { overflow-wrap: anywhere; }
+  table.admin form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .adminAdd { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top: 10px; }
+  .adminAdd input[type=text] { padding: 8px 10px; font-size: 16px; }   /* 16px keeps iPhones from zooming into the field */
   main { padding: 16px; max-width: 1400px; margin: 0 auto; }
   .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
   .filters .group { display:flex; gap:4px; }
@@ -144,7 +150,8 @@
     table.audit, table.vals { font-size: 9px; } table.audit th, table.audit td, table.vals th, table.vals td { padding: 2px 3px; }
     table.audit .badge, table.vals .badge { white-space: normal; font-size: 9px; padding: 0 4px; line-height: 1.2; }
     table.audit td.ctr, table.audit th.ctr, table.vals td.num, table.vals th.num { white-space: normal; } table.vals td.hint { font-size: 9px; }
-    table.audit pre { font-size: 9px !important; } }
+    table.audit pre { font-size: 9px !important; }
+    table.admin { font-size: 11px; } table.admin th, table.admin td { padding: 3px 4px; } table.admin .by { display: none; } }
 </style>
 </head>
 <body>
@@ -224,7 +231,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"]];   // order is Russ's (2026-11-06: Details before Schedule)
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["details", "Details"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06: Details before Schedule; Admin far right, admins only)
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -254,7 +261,7 @@ let snap = null;
 const store = { get(k, d) { try { const v = localStorage.getItem("hvac." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
                 set(k, v) { try { localStorage.setItem("hvac." + k, JSON.stringify(v)); } catch {} } };
 
-const state = { sb: null, user: null, points: [], byId: new Map(), byName: new Map(),
+const state = { sb: null, user: null, admin: false, users: [], points: [], byId: new Map(), byName: new Map(),
                 tab: store.get("tab", "temp"), charts: [], timer: null, status: null, alerts: [], rules: [], cmds: [], cmdTimer: null,
                 tempAhus: store.get("tempAhus", AHUS.map(a => a.key)), tempKinds: store.get("tempKinds", ["zone", "discharge"]), tempRange: store.get("tempRange", "24h"),
                 tempSmooth: store.get("tempSmooth", true), scheds: [], imgs: {},
@@ -277,12 +284,26 @@ function showSetup() {
     el("p", {}, "web/config.js is not present. Copy config.example.js to config.js and fill in the Supabase URL and anon key.")));
   setStatus("bad", "no config");
 }
+// Sign-in is with a Google account (Russ, 2026-11-06); the allow list decides who then sees anything. The email link
+// stays as a fallback under "Other ways to sign in" for anyone without a Google account (and until the Google
+// provider is switched on in Supabase).
+const GOOGLE_G = () => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 48 48");
+  s.innerHTML = '<path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.5 2.9-2.2 5.4-4.7 7.1l7.6 5.9c4.4-4.1 6.9-10.1 6.9-17z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C1 16.5 0 20.1 0 24s1 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.3 0 11.7-2.1 15.6-5.7l-7.6-5.9c-2.1 1.4-4.8 2.3-8 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>';
+  return s; };
 function showLogin(note) {
   $("#tabs").style.display = "none";
+  const msg = el("p", { class: "hint" }, note || "");
+  const gbtn = el("button", { class: "google", onclick: async () => {
+    gbtn.disabled = true; msg.textContent = "Opening Google…";
+    const { error } = await state.sb.auth.signInWithOAuth({ provider: "google",
+      options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: "select_account" } } });
+    if (error) { gbtn.disabled = false;
+      msg.textContent = /not enabled|unsupported provider/i.test(error.message) ? "Google sign-in is not switched on yet. Use the email link below for now."
+        : "Google sign-in failed: " + error.message; }
+  } }, GOOGLE_G(), "Sign in with Google");
   const email = el("input", { type: "text", placeholder: "your email address", style: "width:100%;max-width:320px;padding:10px 12px;font-size:16px", autocomplete: "email" });
   try { email.value = store.get("email", "") || ""; } catch {}
-  const msg = el("p", { class: "hint" }, note || "");
-  const btn = el("button", { class: "primary", onclick: async () => {
+  const btn = el("button", { onclick: async () => {
     const addr = email.value.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { msg.textContent = "That does not look like an email address."; return; }
     btn.disabled = true; msg.textContent = "Sending…";
@@ -293,11 +314,21 @@ function showLogin(note) {
     msg.textContent = `Check ${addr} for a message from Morris North HVAC and click its link. It is valid for a few minutes; the link opens this page signed in.`;
   } }, "Email me a sign-in link");
   email.addEventListener("keydown", (e) => { if (e.key === "Enter") btn.click(); });
+  const other = el("details", { style: "margin-top:24px" }, el("summary", { class: "hint", style: "cursor:pointer" }, "Other ways to sign in"),
+    el("p", { class: "hint" }, "No Google account? A sign-in link can be emailed to you instead."), el("p", {}, email), el("p", {}, btn));
   screen(el("div", { class: "center" }, el("h2", {}, "Morris North HVAC"),
     el("p", {}, "Temperatures, setpoints and equipment status of the church building, logged every minute."),
-    el("p", {}, email), el("p", {}, btn), msg,
-    el("p", { class: "hint" }, "Only addresses on the allow list can see anything. Ask Russ to be added.")));
+    el("p", {}, gbtn), msg,
+    el("p", { class: "hint" }, "Only people on the allow list can see anything. Ask Russ to be added."), other));
   setStatus("", "signed out");
+  // Until the Google provider is switched on in Supabase the authorize call lands on a bare error page, so ask
+  // the (public) auth settings first and point at the email link instead.
+  googleEnabled().then(on => { if (on || !gbtn.isConnected) return; gbtn.disabled = true; other.open = true;
+    if (!msg.textContent) msg.textContent = "Google sign-in is not switched on yet. Use the email link below for now."; });
+}
+async function googleEnabled() {
+  try { const cfg = window.HVAC_CONFIG; const r = await fetch(cfg.SUPABASE_URL + "/auth/v1/settings", { headers: { apikey: cfg.SUPABASE_ANON_KEY } });
+    const j = await r.json(); return !!(j.external && j.external.google); } catch { return true; }
 }
 function showNotAllowed(email) {
   $("#tabs").style.display = "none";
@@ -433,7 +464,8 @@ function renderStatus() {
 // ------------------------------------------------------------------ tabs
 function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
-  for (const [key, label] of TABS) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+  if (state.tab === "admin" && !state.admin) state.tab = "temp";
+  for (const [key, label] of TABS) if (key !== "admin" || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
 }
 function renderTab() {
   clearTimeout(state.timer); clearInterval(state.cmdTimer);
@@ -444,6 +476,7 @@ function renderTab() {
   else if (state.tab === "map") renderMap();
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
+  else if (state.tab === "admin") renderAdmin();
   else renderTemperature();
 }
 
@@ -853,6 +886,80 @@ async function refreshAudit() {
   state.timer = setTimeout(refreshAudit, 60000);
 }
 
+// ------------------------------------------------------------------ Admin tab (admins only; Russ, 2026-11-06)
+// The allow list lives in hvac_allowed_users. Admins read it directly (policy hvac_allowed_users_admin_read) and
+// change it through the hvac_admin_add_user / hvac_admin_remove_user functions (supabase\008_admin.sql), which
+// check the admin flag again on the server, so the page itself guards nothing that matters.
+async function loadUsers() {
+  if (demo) { if (!state.users.length) state.users = [{ email: "russ.koehl@morrisnorth.org", note: "Russ", is_admin: true, added_at: "2026-11-05T15:00:00Z", added_by: null },
+    { email: "someone@example.org", note: "Trustee", is_admin: false, added_at: "2026-11-05T21:10:00Z", added_by: "russ.koehl@morrisnorth.org" }]; return state.users; }
+  const { data, error } = await state.sb.from("hvac_allowed_users").select("email,note,is_admin,added_at,added_by").order("added_at");
+  if (error) throw new Error("hvac_allowed_users: " + error.message);
+  state.users = data || []; return state.users;
+}
+async function adminCall(fn, args) {
+  if (demo) {
+    const e = String(args.p_email || "").trim().toLowerCase();
+    if (fn === "hvac_admin_add_user") { const row = state.users.find(u => u.email === e);
+      if (row) { row.note = args.p_note || row.note; row.is_admin = !!args.p_admin; } else state.users.push({ email: e, note: args.p_note || null, is_admin: !!args.p_admin, added_at: new Date().toISOString(), added_by: "demo" }); }
+    else { if (e === "russ.koehl@morrisnorth.org") throw new Error("You cannot remove yourself"); state.users = state.users.filter(u => u.email !== e); }
+    return;
+  }
+  const { error } = await state.sb.rpc(fn, args);
+  if (error) throw new Error(error.message);
+}
+function renderAdmin() {
+  screen(el("div", { class: "card hint" }, "Who may open this page. Anyone listed signs in with the Google account that uses that email address ",
+      "(or asks for an email link under \"Other ways to sign in\"). Admins see this tab and can add or remove people; ",
+      "everyone else sees the rest of the page only. Removing someone shuts them out the next time the page loads."),
+    el("div", { class: "card", id: "adminList" }, "Loading…"));
+  refreshAdmin();
+}
+async function refreshAdmin(note) {
+  const box = $("#adminList"); if (!box) return;
+  const me = String(state.user?.email || "").toLowerCase();
+  try {
+    const [rows] = await Promise.all([loadUsers(), loadStatus()]);
+    renderStatus();
+    box.replaceChildren();
+    const t = el("table", { class: "admin" }, el("thead", {}, el("tr", {}, el("th", {}, "Email"), el("th", {}, "Name / note"), el("th", { class: "ctr" }, "Admin"), el("th", {}, "Added"), el("th", { class: "by" }, "By"), el("th", {}, ""))));
+    const b = el("tbody");
+    for (const u of rows) {
+      const self = u.email.toLowerCase() === me;
+      const rm = el("button", { class: "small danger", title: self ? "You cannot remove yourself" : "Remove " + u.email }, "Remove");
+      if (self) rm.disabled = true;
+      // two clicks to remove: the button turns into "Really remove?" with a Cancel beside it (no pop-up dialogs)
+      const cell = el("td", {}, rm);
+      rm.onclick = () => {
+        const yes = el("button", { class: "small danger", onclick: async () => { yes.disabled = true;
+          try { await adminCall("hvac_admin_remove_user", { p_email: u.email }); refreshAdmin(`${u.email} removed.`); }
+          catch (e) { refreshAdmin("Could not remove: " + (e.message || e)); } } }, "Really remove?");
+        cell.replaceChildren(yes, " ", el("button", { class: "small", onclick: () => cell.replaceChildren(rm) }, "Cancel"));
+      };
+      b.append(el("tr", {}, el("td", { class: "email" }, u.email, self ? el("span", { class: "hint" }, " (you)") : null), el("td", {}, u.note || ""),
+        el("td", { class: "ctr", "data-sort": u.is_admin ? 1 : 0 }, u.is_admin ? el("span", { class: "badge ok" }, "admin") : ""),
+        el("td", { "data-sort": u.added_at || "" }, u.added_at ? when(u.added_at) : ""), el("td", { class: "email by" }, u.added_by || ""), cell));
+    }
+    t.append(b); box.append(el("div", { class: "tablewrap" }, t)); sortable(t, "admin");
+    // add a person
+    const email = el("input", { type: "text", placeholder: "email address", autocomplete: "off", style: "width:260px;max-width:100%" });
+    const name = el("input", { type: "text", placeholder: "name (optional)", autocomplete: "off", style: "width:160px;max-width:100%" });
+    const adm = el("input", { type: "checkbox" });
+    const msg = el("span", { class: "hint" }, note || "");
+    const add = el("button", { class: "primary", onclick: async () => {
+      const addr = email.value.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { msg.textContent = "That does not look like an email address."; return; }
+      add.disabled = true; msg.textContent = "Adding…";
+      try { await adminCall("hvac_admin_add_user", { p_email: addr, p_note: name.value.trim() || null, p_admin: adm.checked }); refreshAdmin(`${addr} added.`); }
+      catch (e) { add.disabled = false; msg.textContent = "Could not add: " + (e.message || e); }
+    } }, "Add");
+    email.addEventListener("keydown", (e) => { if (e.key === "Enter") add.click(); });
+    box.append(el("div", { class: "adminAdd" }, email, name, el("label", { class: "chk" }, adm, " admin"), add, msg),
+      el("p", { class: "hint", style: "margin:8px 0 0" }, "Use the address of the person's Google account. An admin can add and remove people and make other admins; ",
+        "adding an address that is already listed updates its name and admin flag."));
+  } catch (e) { box.replaceChildren(el("b", {}, "Could not load the list: "), String(e.message || e)); }
+}
+
 // ------------------------------------------------------------------ Details tab (the original page)
 // Russ, 2026-11-05: no trend chart here any more (the Temperature tab has the charts); just the value tables, alerts, rules.
 // Russ, 2026-11-06: the equipment groups are sections of their own, like Alerts; no "Current values" wrapper.
@@ -1079,7 +1186,7 @@ async function boot() {
   if (demo) {
     const u = params.get("data");
     if (u) { try { snap = await (await fetch(u)).json(); } catch (e) { console.warn("snapshot not loaded:", e); } }
-    $("#who").textContent = snap ? "snapshot data" : "demo data"; await loadPoints(); renderTab(); return;
+    $("#who").textContent = snap ? "snapshot data" : "demo data"; state.admin = true; state.user = { email: "russ.koehl@morrisnorth.org" }; await loadPoints(); renderTab(); return;
   }
   if (!cfg || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || cfg.SUPABASE_URL.includes("xxxx")) { showSetup(); return; }
   state.sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
@@ -1089,8 +1196,13 @@ async function boot() {
     $("#signout").style.display = state.user ? "" : "none";
     $("#who").textContent = state.user ? (state.user.email || "") : "";
     if (!state.user) { showLogin(); return; }
-    const { data, error } = await state.sb.from("hvac_allowed_users").select("email").limit(1);
-    if (error || !data || !data.length) { showNotAllowed(state.user.email); return; }
+    // own allow-list row (admins get the whole list back, so pick out the own row by email)
+    const me = String(state.user.email || "").toLowerCase();
+    let { data, error } = await state.sb.from("hvac_allowed_users").select("email,is_admin");
+    if (error && /is_admin/.test(error.message)) ({ data, error } = await state.sb.from("hvac_allowed_users").select("email"));   // 008_admin.sql not run yet
+    const mine = !error && (data || []).find(r => String(r.email).toLowerCase() === me);
+    if (!mine) { showNotAllowed(state.user.email); return; }
+    state.admin = !!mine.is_admin;
     try { await loadPoints(); renderTab(); }
     catch (e) { screen(el("div", { class: "card" }, "Could not load points: " + (e.message || e))); }
   };
@@ -1098,7 +1210,7 @@ async function boot() {
   if (/error=/.test(hash)) {
     const q = new URLSearchParams(hash.slice(1));
     history.replaceState(null, "", location.pathname);
-    showLogin("Sign-in link problem: " + (q.get("error_description") || q.get("error") || "unknown") + ". Request a new link.");
+    showLogin("Sign-in problem: " + (q.get("error_description") || q.get("error") || "unknown") + ". Please try again.");
     return;
   }
   const { data: { session } } = await state.sb.auth.getSession();
