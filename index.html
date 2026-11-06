@@ -116,7 +116,8 @@
   .boiler .t { font-size: 30px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; } .boiler .lbl { font-size: 12px; color: var(--muted); }
   .boiler img { height: 200px; width: auto; margin: 6px auto; display: block; }
   .boiler .imgwrap { position: relative; display: inline-block; }
-  .boiler .st { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap; font-size: 15px; font-weight: 700; padding: 6px 16px; border-radius: 999px; color: #fff; background: #5a5955; letter-spacing: .02em; box-shadow: 0 2px 10px rgba(0,0,0,.45); border: 2px solid #fff; }
+  .boiler .st { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max-content; max-width: 230px; font-size: 15px; font-weight: 700; padding: 6px 14px; border-radius: 16px; color: #fff; background: #5a5955; letter-spacing: .02em; box-shadow: 0 2px 10px rgba(0,0,0,.45); border: 2px solid #fff; line-height: 1.2; }
+  .boiler .st b { display: block; } .boiler .st small { display: block; font-size: 11px; font-weight: 500; opacity: .95; margin-top: 2px; }
   .boiler .st.ok { background: #0b7a0b; } .boiler .st.err { background: #b00020; } .boiler .st.warn { background: #b36b00; }
   main.wide { max-width: none; padding: 10px; }
   .map.full { display: block; width: 100%; max-width: none; } .map.full img { width: 100%; max-width: none; max-height: none; height: auto; }
@@ -245,11 +246,15 @@ const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // AV-308/408 = fire rate %. Boiler 2's inlet/header registers read a constant 250/246 = no sensor connected.)
 // AV-301/401 = unit status (AERCO codes: 0 disabled, 1 standby, 2 manual, 3 remote = running; 4 fault), confirmed against the
 // fire rate on logged data; AV-302/402 = fault code (0 = none).
+// bst: the AERCO Boiler Sequencing Technology role. Boiler-1 is the lead (master); Boiler-2 is a slave the lead calls in when
+// one boiler cannot hold the setpoint. Russ, 2026-11-06: Boiler-2's own display reads "BST in Control, Slave-Standby" while the
+// gateway's status register says 0 = "disabled" (the lead has it switched off until needed), so the page words it as standby.
 const BOILERS = [
-  { name: "Boiler-1", supply: "Boiler-1&2.AV-303", ret: "Boiler-1&2.AV-305", fire: "Boiler-1&2.AV-308", status: "Boiler-1&2.AV-301", fault: "Boiler-1&2.AV-302" },
-  { name: "Boiler-2", supply: "Boiler-1&2.AV-403", ret: "Local Application.HWR-T", retNote: "loop return, boiler 2 has no return sensor", fire: "Boiler-1&2.AV-408", status: "Boiler-1&2.AV-401", fault: "Boiler-1&2.AV-402" },
+  { name: "Boiler-1", bst: "lead", supply: "Boiler-1&2.AV-303", ret: "Boiler-1&2.AV-305", fire: "Boiler-1&2.AV-308", status: "Boiler-1&2.AV-301", fault: "Boiler-1&2.AV-302" },
+  { name: "Boiler-2", bst: "slave", supply: "Boiler-1&2.AV-403", ret: "Local Application.HWR-T", retNote: "loop return, boiler 2 has no return sensor", fire: "Boiler-1&2.AV-408", status: "Boiler-1&2.AV-401", fault: "Boiler-1&2.AV-402" },
 ];
-const BOILER_STATUS = { 0: "Off (disabled)", 1: "Standby", 2: "Manual", 3: "Running", 4: "Fault" };
+const BOILER_STATUS = { 0: "Off", 1: "Standby", 2: "Manual", 3: "Running", 4: "Fault" };   // AERCO unit-status register (0 = disabled)
+const BOILER_ENABLE = "Local Application.BLR-EN";   // the engine's boiler-plant enable (off = heating season over / plant switched off)
 const BOILER_COLORS = ["--s1", "--s2"];   // chart colours: Boiler-1 blue, Boiler-2 orange (Russ, 2026-11-06)
 // Russ, 2026-11-05: no changes from the page for now (hides "Set from here" and the rule editor). Set true to bring them back.
 const ALLOW_CHANGES = false;
@@ -541,24 +546,36 @@ function renderBoilers() {
   const deg = (p) => p && p.last_value != null ? Number(p.last_value).toFixed(1) + " °F" : "–";
   for (const b of BOILERS) {
     const s = pt(b.supply), r = pt(b.ret);
-    const { label, cls, firing } = boilerState(b);
-    box.append(el("div", { class: "boiler" }, el("h3", {}, b.name),
+    const { label, detail, cls, firing } = boilerState(b);
+    box.append(el("div", { class: "boiler" }, el("h3", {}, b.name, el("span", { class: "hint", style: "font-weight:400;font-size:12px" }, b.bst === "lead" ? " · lead" : " · BST slave")),
       el("div", { class: "t" }, deg(s)), el("div", { class: "lbl" }, "supply"),
-      el("div", { class: "imgwrap" }, el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }), el("div", { class: "st " + cls }, label + firing)),
+      el("div", { class: "imgwrap" }, el("img", { alt: b.name, src: state.boilerImg || "", title: `${b.supply} / ${b.ret}` }),
+        el("div", { class: "st " + cls }, el("b", {}, label + firing), el("small", {}, detail))),
       el("div", { class: "t" }, deg(r)), el("div", { class: "lbl" }, b.retNote ? `return (${b.retNote})` : "return")));
   }
 }
 // status words and colour for one boiler, from the AERCO status / fault / fire-rate registers (shared by the Boilers card and the Boiler room drawing)
+// Returns { label: short word for a pill, detail: what the boiler is doing right now in plain words, cls, firing, fire, code, faultCode }.
+// Wording follows the boiler's own display: a BST slave that the lead has not called in is "Standby", not "disabled".
 function boilerState(b) {
-  const f = pt(b.fire), st = pt(b.status), fc = pt(b.fault);
+  const f = pt(b.fire), st = pt(b.status), fc = pt(b.fault), en = pt(BOILER_ENABLE);
   const code = st && st.last_value != null ? Number(st.last_value) : null;
   const faultCode = fc && fc.last_value != null ? Number(fc.last_value) : 0;
   const fire = f && f.last_value != null ? Number(f.last_value) : 0;
+  const plantOn = !en || en.last_value == null || Number(en.last_value) === 1;
+  const other = BOILERS.find(x => x !== b); const otherName = other ? other.name : "the lead boiler";
+  const lead = b.bst === "lead";
   const firing = fire > 0 ? ` · firing at ${fire.toFixed(0)} %` : "";
-  let label = code == null ? "no status" : (BOILER_STATUS[code] || `status ${code}`), cls = "";
-  if (faultCode || code === 4) { label = `FAULT${faultCode ? " code " + faultCode : ""}`; cls = "err"; }
-  else if (code === 3) cls = "ok"; else if (code === 0) cls = "err"; else if (code === 1 || code === 2) cls = "warn";
-  return { label, cls, firing, fire, code, faultCode };
+  let label, detail, cls;
+  if (code == null) { label = "No status"; detail = "the boiler gateway is not answering"; cls = ""; }
+  else if (faultCode || code === 4) { label = faultCode ? `FAULT ${faultCode}` : "FAULT"; detail = "the boiler has shut itself down on a fault; see its display"; cls = "err"; }
+  else if (code === 3) { label = "Running"; detail = lead ? "lead boiler (BST in control)" : `called in by ${otherName} to help (BST slave)`; cls = "ok"; }
+  else if (code === 2) { label = "Manual"; detail = "run by hand from the boiler's own panel"; cls = "warn"; }
+  else if (code === 1) { label = "Standby"; detail = lead ? "lead boiler, ready, not firing" : `ready, waiting for ${otherName} to call it in`; cls = "warn"; }
+  else if (!plantOn) { label = "Off"; detail = "the heating plant is switched off at the engine"; cls = ""; }
+  else if (!lead) { label = "Standby"; detail = `BST slave: held off by ${otherName} until it is needed`; cls = "warn"; }
+  else { label = "Off"; detail = "disabled at the unit while the plant is on"; cls = "err"; }
+  return { label, detail, cls, firing, fire, code, faultCode };
 }
 // boiler temperature chart, same controls as the air-handler chart
 function chk(text, on, onchange, color) {
@@ -859,13 +876,17 @@ function boilerRoomSvg() {
     const alarm = on(bb.a); const running = on(bb.s) || st.code === 3;
     const stroke = alarm || st.cls === "err" ? bad : running ? good : grid;
     s += `<rect x="${x}" y="200" width="100" height="130" rx="8" fill="${surface}" stroke="${stroke}" stroke-width="${running || alarm ? 4 : 2}"/>`;
-    s += label(x + 50, 222, bb.name + "  BOILER", "middle", 13, ink, 700);
+    s += label(x + 50, 220, bb.name + "  BOILER", "middle", 13, ink, 700) + label(x + 50, 228, bb.b.bst === "lead" ? "lead (BST master)" : "BST slave", "middle", 7);
     const pill = alarm ? "ALARM" : st.label.toUpperCase();
     const pillColor = alarm || st.cls === "err" ? bad : st.cls === "ok" ? good : st.cls === "warn" ? warn : muted;
-    s += `<rect x="${x + 5}" y="232" width="90" height="20" rx="10" fill="${pillColor}"/>` + label(x + 50, 246, pill, "middle", pill.length > 10 ? 8.5 : 10, "#fff", 700);
-    s += label(x + 50, 274, num(bb.b.supply, 1, " °F"), "middle", 18, ink, 700) + label(x + 50, 288, "outlet", "middle", 9);
-    if (st.fire > 0) s += label(x + 50, 306, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700); else s += label(x + 50, 306, "not firing", "middle", 10);
-    if (i === 0) s += label(x + 50, 322, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
+    s += `<rect x="${x + 5}" y="230" width="90" height="18" rx="9" fill="${pillColor}"/>` + label(x + 50, 243, pill, "middle", pill.length > 10 ? 8.5 : 10, "#fff", 700);
+    // what it is doing right now, in two short lines under the pill (wrapped by hand: the SVG has no text wrapping)
+    const words = (alarm ? "engine reports a boiler alarm" : st.detail).split(" "); const l1 = [], l2 = [];
+    for (const w of words) ((l1.join(" ").length + w.length < 22 && !l2.length) ? l1 : l2).push(w);
+    s += label(x + 50, 258, l1.join(" "), "middle", 7.5, alarm || st.cls === "err" ? bad : ink2) + label(x + 50, 267, l2.join(" "), "middle", 7.5, alarm || st.cls === "err" ? bad : ink2);
+    s += label(x + 50, 286, num(bb.b.supply, 1, " °F"), "middle", 18, ink, 700) + label(x + 50, 298, "outlet", "middle", 9);
+    if (st.fire > 0) s += label(x + 50, 312, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700); else s += label(x + 50, 312, "not firing", "middle", 10);
+    if (i === 0) s += label(x + 50, 324, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
     // relief valve + condensate stub, as drawn
     s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + label(x + 104, 240, "relief", "start", 8);
     s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 350, "condensate", "start", 8);
