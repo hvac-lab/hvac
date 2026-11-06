@@ -126,6 +126,10 @@
   main.wide { max-width: none; padding: 10px; }
   .map.full { display: block; width: 100%; max-width: none; } .map.full img { width: 100%; max-width: none; max-height: none; height: auto; }
   .spot-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* Heating loop diagram: the loop drawn over a faded copy of the floor plan; dashes move where water is being pumped */
+  .map img.faded { opacity: .42; filter: saturate(.25); }
+  .loop-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; font-family: system-ui, sans-serif; }
+  .loop-lines .pipe.flow { stroke-dasharray: 10 7; animation: pipeflow 1.2s linear infinite; }
   table.vals tbody tr:hover td { background: var(--hover); }
   table.vals td.num, table.vals th.num { font-weight: 600; text-align: center; }
   th.sortable { cursor: pointer; user-select: none; white-space: nowrap; } th.sortable:hover { color: var(--ink); text-decoration: underline; }
@@ -250,7 +254,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
+const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["loopmap", "Heating loop diagram"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
 // Boilers (AERCO Benchmark pair behind the "Boiler-1&2" Modbus gateway; register meaning worked out from
@@ -500,9 +504,10 @@ function renderTab() {
   clearTimeout(state.timer); clearInterval(state.cmdTimer);
   state.charts.forEach(c => c.destroy()); state.charts = [];
   renderTabs();
-  main.classList.toggle("wide", state.tab === "map");
+  main.classList.toggle("wide", state.tab === "map" || state.tab === "loopmap");
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
+  else if (state.tab === "loopmap") renderLoopMap();
   else if (state.tab === "boiler") renderBoilerRoom();
   else if (state.tab === "ahu") renderAhus();
   else if (state.tab === "loop") renderLoop();
@@ -870,7 +875,7 @@ function drawSpots() {
   }
   box.append(svg);
 }
-window.addEventListener("resize", () => { if ($("#mapBox")) { fitMap(); drawSpots(); } });
+window.addEventListener("resize", () => { if ($("#mapBox")) { fitMap(); if (state.tab === "map") drawSpots(); } });
 async function refreshMap() {
   clearTimeout(state.timer);
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); drawSpots(); } catch {}
@@ -1277,6 +1282,124 @@ function loopSvg() {
   s += label(RX - 17, 92, `${calling} of ${LOOP.length} loads calling for heat`, "end", 9, k.ink2, 600);
   s += label(500, bottom + 44, "after sheet M3.1 details 1 and 4, M3.2 and M5.1 details 5, 6, 7 and 13 (WSN, 2013); manifold N = floor zone N and the ΔP location are inferred; live values from the logger", "middle", 8);
   return `<svg viewBox="0 0 1000 ${bottom + 54}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
+}
+
+// ------------------------------------------------------------------ Heating loop diagram tab (Russ, 2026-11-06 evening)
+// The same loop as the ladder, drawn where it really runs, over a faded copy of the floor plan. Sheet M3.1 detail 1
+// (basement hydronic plan): the basement sits under the Fellowship Area and holds the boilers B-1/B-2, the pumps
+// CP-1/CP-2 with the expansion tank and glycol feeder against its east wall, AHU-1 / AHU-2 / AHU-3, and manifolds 1-9
+// along its walls (MAN-4..7 west, MAN-8/9 north, MAN-1..3 east); the mains run from the pumps up the east wall, west
+// along the north wall and down the west wall to a cap past MAN-4. MAN-10 and MAN-11 are on the main floor in the
+// plumbing chase by the men's restroom (the "up to first floor" risers), the cabinet heaters CUH-1/2 in the vestibule
+// (M3.2). Coordinates are percent of the picture x 10: the basement plan was laid on the main-floor plan by its stair
+// (both 1/8" scale, shift only) and then on the picture through the same two fits as the slab sensors. Supply is red,
+// return blue; the dashes move while a pump runs and the load's valve is open (same live points as the ladder).
+const LOOPMAP = {
+  footprint: [330, 517, 681, 935], stair: [529, 834, 630, 871],
+  mains: [[[668, 735], [668, 569]], [[668, 569], [348, 569]], [[348, 569], [348, 824]]],   // east wall up, north wall west, west wall down
+  ahus: { "AHU-1": { box: [365, 596, 397, 661], br: [[405, 569], [405, 629], [397, 629]] }, "AHU-2": { box: [557, 608, 604, 655], br: [[576, 569], [576, 608]] },
+          "AHU-3": { box: [559, 742, 605, 787], br: [[668, 770], [668, 801], [589, 801], [589, 787]] } },
+  mans: { 1: { at: [675, 614], br: [[668, 614], [675, 614]], side: "r" }, 2: { at: [675, 797], br: [[668, 770], [668, 797], [675, 797]], side: "r" }, 3: { at: [675, 826], br: [[668, 797], [668, 826], [675, 826]], side: "r" },
+          4: { at: [333, 801], br: [[348, 801], [333, 801]], side: "l" }, 5: { at: [333, 762], br: [[348, 762], [333, 762]], side: "l" }, 6: { at: [333, 727], br: [[348, 727], [333, 727]], side: "l" }, 7: { at: [333, 624], br: [[348, 624], [333, 624]], side: "l" },
+          8: { at: [412, 522], br: [[412, 569], [412, 522]], side: "l" }, 9: { at: [436, 522], br: [[436, 569], [436, 522]], side: "r" },
+          10: { at: [588, 458], br: [[607, 569], [607, 487], [600, 487], [600, 458], [588, 458]], side: "r", note: "plumbing chase" }, 11: { at: [588, 487], br: [[600, 487], [588, 487]], side: "r", note: "plumbing chase" } },
+  cuhs: { 1: { at: [81, 622] }, 2: { at: [80, 760] } }, cuhRun: [[348, 569], [58, 569], [58, 622], [58, 760]],
+  boilers: [[645, 664, 657, 680], [645, 700, 657, 715]], pumps: [[665, 745], [665, 765]], dp: [463, 544], dpBr: [[463, 569], [463, 552]],
+};
+function renderLoopMap() {
+  const box = el("div", { class: "map full", id: "mapBox" });
+  const img = el("img", { class: "faded", alt: "Building floor plan", draggable: "false" });
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "loop-lines"); svg.setAttribute("viewBox", "0 0 1000 704.5"); svg.setAttribute("preserveAspectRatio", "none"); svg.id = "loopMapSvg";
+  img.onerror = () => { box.replaceChildren(el("div", { style: "padding:40px;max-width:520px" }, el("b", {}, "No building picture yet. "), `Upload ${MAP.image} to the "${MAP.bucket}" storage bucket (cli upload-file) first.`)); };
+  img.onload = () => { box.style.minWidth = (MAP.width || img.naturalWidth) + "px"; state.loopAr = img.naturalHeight / img.naturalWidth; svg.setAttribute("viewBox", `0 0 1000 ${(1000 * state.loopAr).toFixed(1)}`); fitMap(); if (svg.childElementCount) svg.innerHTML = loopMapSvg(); };
+  imageUrl(MAP.image).then(u => { img.src = u; });
+  box.append(img, svg);
+  const wrap = el("div", { class: "mapfit" }, box);
+  state.mapView = { z: 1, tx: 0, ty: 0, k: 1 };
+  mapGestures(wrap, box);
+  screen(wrap);
+  refreshLoopMap();
+}
+async function refreshLoopMap() {
+  clearTimeout(state.timer);
+  const svg = $("#loopMapSvg"); if (!svg) return;
+  try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); svg.innerHTML = loopMapSvg(); } catch (e) { svg.innerHTML = `<text x="20" y="30" font-size="14" fill="${css("--critical")}">Could not load: ${String(e.message || e).replace(/[<&]/g, " ")}</text>`; }
+  state.timer = setTimeout(refreshLoopMap, 60000);
+}
+function loopMapSvg() {
+  const k = svgKit(); const { label, pipe, pump, num, val, on, has } = k;
+  // LOOPMAP is in percent x 10 both ways; the drawing's y axis is the picture's height (704.5 for a 2000 x 1409 picture),
+  // so y values are scaled here and nothing (text, circles) is squashed
+  const ar = state.loopAr || 0.7045;
+  const scaleY = (v) => Array.isArray(v) ? (v.length === 2 && typeof v[0] === "number" ? [v[0], v[1] * ar] : v.length === 4 && typeof v[0] === "number" ? [v[0], v[1] * ar, v[2], v[3] * ar] : v.map(scaleY)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([a, b]) => [a, scaleY(b)])) : v;
+  const M = scaleY(LOOPMAP);
+  const pumpOn = on("Local Application.CP1-S") || on("Local Application.CP2-S");
+  const d = (pts) => "M " + pts.map(p => p.join(" ")).join(" L ");
+  // supply (red) and return (blue) side by side; the return's dashes run the other way
+  const pair = (pts, flow, w = 3) => `<g transform="translate(-2.2,-2.2)">${pipe(d(pts), k.red, flow, w)}</g><g transform="translate(2.2,2.2)">${pipe(d([...pts].reverse()), k.blue, flow, w)}</g>`;
+  const rect = (b, fill, stroke, w = 1.6, rx = 3) => `<rect x="${b[0]}" y="${b[1]}" width="${b[2] - b[0]}" height="${b[3] - b[1]}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${w}"/>`;
+  let s = "", calling = 0, loads = 0;
+  // basement footprint and the stair
+  s += rect(M.footprint, k.blue, k.ink2, 1.2, 6).replace(`fill="${k.blue}"`, `fill="${k.blue}" fill-opacity=".07" stroke-dasharray="7 5"`);
+  s += label(M.footprint[0] + 8, M.footprint[3] - 8, "BASEMENT B100 under the Fellowship Area · sheet M3.1", "start", 9, k.ink2, 600);
+  s += rect(M.stair, k.surface, k.grid, 1, 2) + label((M.stair[0] + M.stair[2]) / 2, M.stair[3] - 12, "stair A", "middle", 8, k.muted);
+  // mains and the cabinet-heater run
+  for (const seg of M.mains) s += pair(seg, pumpOn, 4);
+  const cuhOpen = (n) => (val(`FEC-10.CUH${n}-HTG-O`) || 0) > 0;
+  s += pair(M.cuhRun, pumpOn && (cuhOpen(1) || cuhOpen(2)), 2.5);
+  s += pair(M.dpBr, false, 1.5);
+  // air handler heating coils
+  for (const [id, a] of Object.entries(M.ahus)) {
+    const A = AHUS.find(x => x.key === id); const h = val(`${A.fec}.HTG-O`) || 0, open = h > 0; loads++; if (open) calling++;
+    s += pair(a.br, pumpOn && open, 2.5);
+    s += rect(a.box, open ? k.red : k.surface, open ? k.red : k.ink2, open ? 2.2 : 1.4).replace("/>", ` fill-opacity="${open ? .18 : .9}"/>`);
+    const cx = (a.box[0] + a.box[2]) / 2, cy = (a.box[1] + a.box[3]) / 2;
+    s += label(cx, cy - 2, id, "middle", 11, k.ink, 700) + label(cx, cy + 11, has(`${A.fec}.HTG-O`) ? `coil ${h.toFixed(0)} %` : "coil –", "middle", 9, open ? k.red : k.muted, open ? 700 : 400);
+  }
+  // manifolds (one zone valve each): box at the manifold, zone number, slab temperature
+  for (const [n, m] of Object.entries(M.mans)) {
+    const v = val(`FEC-5.ZN${n}V-C`), open = v === 1; loads++; if (open) calling++;
+    s += pair(m.br, pumpOn && open, 2);
+    const [x, y] = m.at; const w = 20, h = 12;
+    s += rect([x - w / 2, y - h / 2, x + w / 2, y + h / 2], open ? k.red : k.surface, open ? k.red : k.ink2, open ? 2 : 1.3, 2).replace("/>", ` fill-opacity="${open ? .9 : .95}"/>`);
+    s += label(x, y + 3.5, `M${n}`, "middle", 8.5, open ? "#fff" : k.ink2, 700);
+    const t = num(`FEC-5.ZN${n}SLAB-T`, 1, "°"); const txt = `zone ${n} · ${t}${m.note ? " · " + m.note : ""}`;
+    if (m.side === "r") s += label(x + w / 2 + 4, y + 3, txt, "start", 8, open ? k.ink : k.ink2, open ? 700 : 500);
+    else if (m.side === "l") s += label(x - w / 2 - 4, y + 3, txt, "end", 8, open ? k.ink : k.ink2, open ? 700 : 500);
+    else s += label(x, y - h / 2 - 4, txt, "middle", 8, open ? k.ink : k.ink2, open ? 700 : 500);
+  }
+  // cabinet unit heaters in the vestibule
+  for (const [n, c] of Object.entries(M.cuhs)) {
+    const open = cuhOpen(n), fan = on(`FEC-10.CUH${n}-SF-S`); loads++; if (open) calling++;
+    const [x, y] = c.at; s += pair([[58, y], [x - 12, y]], pumpOn && open, 2);
+    s += rect([x - 12, y - 9, x + 12, y + 9], open ? k.red : k.surface, open ? k.red : k.ink2, open ? 2 : 1.3, 2).replace("/>", ` fill-opacity="${open ? .18 : .95}"/>`);
+    s += label(x, y + 3, `CUH-${n}`, "middle", 7.5, k.ink, 700);
+    s += label(x + 16, y + 3, has(`FEC-10.CUH${n}-HTG-O`) ? `${(val(`FEC-10.CUH${n}-HTG-O`) || 0).toFixed(0)} % · fan ${fan ? "on" : "off"}` : "–", "start", 7.5, open ? k.red : k.muted, open ? 700 : 400);
+  }
+  // boilers and pumps against the east wall
+  BR.boilers.forEach((b, i) => { const st = val(b.b.status), run = st === 3, fault = st === 4 || on(b.a);
+    s += rect(M.boilers[i], run ? k.red : k.surface, fault ? k.bad : run ? k.red : k.ink2, run || fault ? 2.2 : 1.3, 2).replace("/>", ` fill-opacity="${run ? .35 : .95}"/>`);
+    s += label(M.boilers[i][0] - 4, (M.boilers[i][1] + M.boilers[i][3]) / 2 + 3, `${b.name} ${fault ? "FAULT" : run ? "firing" : BOILER_STATUS[st] || "–"}`, "end", 8, fault ? k.bad : run ? k.red : k.ink2, 600); });
+  BR.pumps.forEach((p, i) => { const run = on(p.s), alarm = on(p.a); s += pump(M.pumps[i][0], M.pumps[i][1], run, alarm, 8);
+    s += label(M.pumps[i][0] + 12, M.pumps[i][1] + 3, `${p.name} ${alarm ? "ALARM" : run ? "ON " + num(p.o, 0, " %") : "off"}`, "start", 8, alarm ? k.bad : run ? k.good : k.muted, run || alarm ? 700 : 500); });
+  s += label(M.pumps[0][0] + 12, M.pumps[0][1] - 10, `HWS ${num("Local Application.HWS-T", 1, " °F")} · HWR ${num("Local Application.HWR-T", 1, " °F")}`, "start", 8.5, k.ink, 700);
+  s += label(M.pumps[0][0] + 12, M.pumps[1][1] + 16, `expansion tank EXP-1 · glycol feeder`, "start", 7, k.muted);
+  // loop pressure difference sensor on the north main
+  const dp = val("Local Application.HW-DP"), dpsp = val("Local Application.HWDP-SP");
+  s += `<circle cx="${M.dp[0]}" cy="${M.dp[1]}" r="8" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.4"/>` + label(M.dp[0], M.dp[1] + 3, "ΔP", "middle", 7, k.ink2, 700);
+  s += label(M.dp[0] + 11, M.dp[1] + 3, `${dp == null ? "–" : dp.toFixed(1) + " psi"}${dpsp != null ? ` (setpoint ${dpsp.toFixed(1)})` : ""}`, "start", 8, k.ink, 600);
+  // key and plant summary in the empty corner over the patio
+  const oat = val("FEC-5.OA-T"), lock = val("FEC-5.HTGOATLOCKOUT-SP");
+  const floorNote = lock != null && oat != null ? (oat >= lock ? `floor heating locked out above ${lock.toFixed(0)} °F outdoors (now ${oat.toFixed(1)})` : `floor heating allowed below ${lock.toFixed(0)} °F outdoors (now ${oat.toFixed(1)})`) : "";
+  const kx = 745, ky = 60;
+  s += `<rect x="${kx - 10}" y="${ky - 24}" width="262" height="${floorNote ? 92 : 80}" rx="8" fill="${k.surface}" fill-opacity=".92" stroke="${k.grid}"/>`;
+  s += label(kx, ky - 6, "HEATING LOOP", "start", 13, k.ink, 700) + label(kx + 112, ky - 6, `${calling} of ${loads} loads calling for heat`, "start", 9, k.ink2, 600);
+  s += pipe(`M ${kx} ${ky + 10} H ${kx + 40}`, k.red, pumpOn, 4) + label(kx + 46, ky + 13, "supply (HWS)", "start", 9, k.ink2) + pipe(`M ${kx + 125} ${ky + 10} H ${kx + 165}`, k.blue, pumpOn, 4) + label(kx + 171, ky + 13, "return (HWR)", "start", 9, k.ink2);
+  s += label(kx, ky + 30, pumpOn ? "moving dashes = water being pumped · red box = valve open" : "no loop pump is running · nothing is flowing", "start", 8.5, pumpOn ? k.ink2 : k.bad, pumpOn ? 400 : 700);
+  s += label(kx, ky + 44, `boiler setpoint ${num("Local Application.BLRSP-O", 1, " °F")}${has("FEC-5.SYSTEM-EN") && !on("FEC-5.SYSTEM-EN") ? " · FLOOR SYSTEM DISABLED" : ""}`, "start", 8.5, has("FEC-5.SYSTEM-EN") && !on("FEC-5.SYSTEM-EN") ? k.bad : k.ink2, 600);
+  if (floorNote) s += label(kx, ky + 58, floorNote, "start", 8, k.muted);
+  return s;
 }
 
 // ------------------------------------------------------------------ Exhaust fans tab (Russ, 2026-11-06)
