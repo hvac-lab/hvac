@@ -109,6 +109,8 @@
   .adj .durs button.on { border-color: var(--s1); color: var(--s1); background: var(--band); font-weight: 650; }
   .adj .go { width: 100%; padding: 15px; font-size: 17px; border-radius: 12px; touch-action: manipulation; }
   .adj .back { width: 100%; margin-top: 8px; padding: 13px; font-size: 15px; border-radius: 12px; touch-action: manipulation; }
+  .adj .run { width: 100%; margin-top: 8px; padding: 14px; font-size: 16px; font-weight: 600; border-radius: 12px; border: 2px solid var(--good); color: var(--good); touch-action: manipulation; }
+  .adj .ovr.runs { border-color: var(--good); }
   .adj .msg { margin-top: 10px; font-size: 14px; color: var(--ink-2); }
   .adj .msg.ok { color: var(--good); } .adj .msg.bad { color: var(--critical); } .adj .msg.wait { color: var(--s1); }
   .adj .ovr { margin-top: 10px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--warning); font-size: 14px; }
@@ -1812,6 +1814,10 @@ async function refreshAll() {
 // rule (60-80 °F), writes it at priority 8 (operator override), reads it back and marks the request done or failed.
 // A time limit makes the PC hand the setpoint back to the schedule by itself; "Back to schedule" does it now. Admins only:
 // the tab is hidden for others and the database refuses their requests (supabase\009_commands_admin.sql).
+// "Run now" (Russ, 2026-11-07): a setpoint alone does not start a unit the schedule has off, so the card also offers the
+// controller's temporary occupancy switch (ZN-TOCC, on/off, already allowed in commands.rules) for the same time limit.
+// The controller adds its own run-on after the switch goes off (OCCMODE-BYPASSTIME, "Bypass Off-Delay Timer", 7200 s
+// on all three units), so the card says the unit keeps running about that much longer.
 const ADJ_DURS = [[60, "1 hr"], [120, "2 hr"], [240, "4 hr"], [480, "8 hr"], [0, "No limit"]];
 function renderAdjust() {
   state.adj = state.adj || {};
@@ -1829,7 +1835,7 @@ async function refreshAdjust() {
   const box = $("#adjust"); if (!box) return;
   try {
     await Promise.all([loadStatus(), demo ? null : loadPoints()]);
-    await loadAdjustCommands(AHUS.map(a => pt(`${a.fec}.ZNT-SP`)).filter(Boolean).map(p => p.id));
+    await loadAdjustCommands(AHUS.flatMap(a => [pt(`${a.fec}.ZNT-SP`), pt(`${a.fec}.ZN-TOCC`)]).filter(Boolean).map(p => p.id));
     renderStatus(); drawAdjust();
   } catch (e) { box.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load: "), String(e.message || e))); }
   // while a request is waiting for the building, look again every 8 s; otherwise once a minute
@@ -1837,24 +1843,36 @@ async function refreshAdjust() {
 }
 function adjTime(iso) { return iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""; }
 function adjNum(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1); }
+// when a website request's time limit runs out (null = no limit), and whether it is still in force
+function adjUntil(c) { return c && c.duration_min ? new Date(new Date(c.executed_at || c.created_at).getTime() + c.duration_min * 60000) : null; }
+function adjLive(c, now) { return !!c && c.status === "done" && !c.release && !c.released_at && (!c.duration_min || adjUntil(c).getTime() > now); }
+function adjHours(m) { return m === 60 ? "1 hour" : m % 60 ? `${m} minutes` : `${m / 60} hours`; }
 function drawAdjust() {
   const box = $("#adjust"); if (!box) return;
   const cards = [];
   AHUS.forEach((a, i) => {
     const sp = pt(`${a.fec}.ZNT-SP`), zn = pt(`${a.fec}.ZN-T`), occ = pt(`${a.fec}.EFF-OCC`);
+    const tocc = pt(`${a.fec}.ZN-TOCC`), bypass = pt(`${a.fec}.OCCMODE-BYPASSTIME`);
     if (!sp) return;
     const rule = sp.command_rule || {}; const min = rule.min ?? 60, max = rule.max ?? 80;
     const cur = sp.last_value != null ? Number(sp.last_value) : null;
     const st = state.adj[a.key] || (state.adj[a.key] = { target: null, dur: 240, err: "" });
     if (st.target == null && cur != null) st.target = cur;
-    const mine = state.cmds.filter(c => c.point_id === sp.id);
+    const ids = [sp.id, tocc ? tocc.id : null].filter(x => x != null);
+    const mine = state.cmds.filter(c => ids.includes(c.point_id));   // newest first
     const pending = mine.find(c => c.status === "pending");
     const last = mine.find(c => c.status !== "pending");
+    const lastSp = mine.find(c => c.point_id === sp.id && c.status !== "pending");
+    const lastRun = tocc ? mine.find(c => c.point_id === tocc.id && c.status !== "pending") : null;
     const now = Date.now();
-    // a setpoint this site set and has not handed back yet (no time limit, or the limit has not run out)
-    const active = last && last.status === "done" && !last.release && !last.released_at &&
-      (!last.duration_min || new Date(last.executed_at || last.created_at).getTime() + last.duration_min * 60000 > now) ? last : null;
+    // a setpoint / run request this site made and has not handed back yet (no time limit, or the limit has not run out)
+    const active = adjLive(lastSp, now) ? lastSp : null;
+    const activeRun = adjLive(lastRun, now) ? lastRun : null;
     const overridden = !!(sp.last_flags & FLAG.overridden);
+    const occTxt = occ ? fmtVal(occ, occ.last_value) : "";
+    const scheduledOn = /^occupied$/i.test(occTxt);
+    const runningOnRequest = !!activeRun || !!(tocc && Number(tocc.last_value) === 1);
+    const runOnMin = bypass && bypass.last_value != null ? Math.round(Number(bypass.last_value) / 60) : 120;   // controller's own run-on afterwards
 
     const shown = el("div", { class: "target", "aria-live": "polite" }, st.target != null ? adjNum(st.target) + "°" : "–",
       el("small", {}, cur == null ? "setpoint unknown" : st.target === cur ? "current setpoint" : `now ${adjNum(cur)}°, new setpoint`));
@@ -1868,50 +1886,69 @@ function drawAdjust() {
       ...ADJ_DURS.map(([m, t]) => el("button", { class: st.dur === m ? "on" : "", "aria-pressed": st.dur === m ? "true" : "false",
         onclick: () => { st.dur = m; drawAdjust(); } }, t)));
     const changed = st.target != null && cur != null && st.target !== cur;
-    const durText = st.dur ? `for ${ADJ_DURS.find(d => d[0] === st.dur)[1].replace("hr", "hours").replace("1 hours", "1 hour")}` : "with no time limit";
+    const durText = st.dur ? `for ${adjHours(st.dur)}` : "with no time limit";
     const go = el("button", { class: "primary go", onclick: () => sendAdjust(a, sp, st.target, false, st.dur) },
       pending ? "Waiting for the building…" : changed ? `Set ${a.name} to ${adjNum(st.target)}° ${durText}` : `Setpoint is ${cur == null ? "–" : adjNum(cur) + "°"}`);
     if (pending || !changed) go.disabled = true;
 
+    // Run now: only when the schedule has the unit off and nobody has already started it
+    let run = null;
+    if (tocc && !scheduledOn && !runningOnRequest) {
+      run = el("button", { class: "run", onclick: () => sendAdjust(a, tocc, 1, false, st.dur) },
+        `Run ${a.name} now ${st.dur ? "for " + adjHours(st.dur) : "until I stop it"}`);
+      if (pending) run.disabled = true;
+    }
+
     let msg = null;
+    const isRun = (c) => tocc && c.point_id === tocc.id;
     if (st.err) msg = el("div", { class: "msg bad" }, st.err);
     else if (pending) msg = el("div", { class: "msg wait" }, `Sent ${adjTime(pending.created_at)}. The church computer picks it up within a minute…`);
     else if (last && now - new Date(last.executed_at || last.created_at).getTime() < 15 * 60000)
-      msg = last.status === "done" ? el("div", { class: "msg ok" }, last.release ? "Back on the schedule." : `Done: the building confirmed ${adjNum(Number(last.value))}°.`)
-                                   : el("div", { class: "msg bad" }, `Did not go through: ${last.result || "no reason given"}`);
+      msg = last.status !== "done" ? el("div", { class: "msg bad" }, `Did not go through: ${last.result || "no reason given"}`)
+          : isRun(last) ? el("div", { class: "msg ok" }, last.release ? `Stopped. The controller winds the unit down within about ${adjHours(runOnMin)}.` : "Started: the building confirmed the unit is on request.")
+          : el("div", { class: "msg ok" }, last.release ? "Setpoint back on the schedule." : `Done: the building confirmed ${adjNum(Number(last.value))}°.`);
 
-    let ovr = null;
+    const notes = [];
+    if (runningOnRequest) {
+      const until = activeRun ? adjUntil(activeRun) : null;
+      notes.push(el("div", { class: "ovr runs" }, activeRun ? `Running on request by ${(activeRun.created_by || "").split("@")[0]}` : "Running on a temporary-occupancy request",
+        activeRun ? (until ? ` until ${adjTime(until.toISOString())}` : ", until stopped") : "",
+        `. After that the controller keeps it on about ${adjHours(runOnMin)} more.`));
+    }
     if (active) {
-      const until = active.duration_min ? new Date(new Date(active.executed_at || active.created_at).getTime() + active.duration_min * 60000).toISOString() : null;
-      ovr = el("div", { class: "ovr" }, `Set to ${adjNum(Number(active.value))}° by ${(active.created_by || "").split("@")[0]}`, until ? `, back to the schedule at ${adjTime(until)}` : ", no time limit");
-    } else if (overridden) ovr = el("div", { class: "ovr" }, "This setpoint is overridden in Metasys right now.");
-    const back = (active || overridden) && !pending ? el("button", { class: "back", onclick: () => sendAdjust(a, sp, null, true, null) }, "Back to schedule now") : null;
+      const until = adjUntil(active);
+      notes.push(el("div", { class: "ovr" }, `Set to ${adjNum(Number(active.value))}° by ${(active.created_by || "").split("@")[0]}`, until ? `, back to the schedule at ${adjTime(until.toISOString())}` : ", no time limit"));
+    } else if (overridden) notes.push(el("div", { class: "ovr" }, "This setpoint is overridden in Metasys right now."));
+    const stop = runningOnRequest && !pending ? el("button", { class: "back", onclick: () => sendAdjust(a, tocc, null, true, null) }, "Stop running now") : null;
+    const back = (active || overridden) && !pending ? el("button", { class: "back", onclick: () => sendAdjust(a, sp, null, true, null) }, "Setpoint back to schedule") : null;
 
-    const occTxt = occ ? fmtVal(occ, occ.last_value) : "";
-    // a setpoint does not start the unit; the time limit runs from now (Russ asked, 2026-11-07)
-    const off = occ && !/^(occupied|bypass)$/i.test(occTxt) ? el("div", { class: "off" }, `The schedule has this unit ${occTxt.toLowerCase()} right now. Changing the setpoint does not turn it on: the new setpoint is only used if the schedule runs the unit before the time limit is up.`) : null;
+    // a setpoint does not start the unit; Run now does (Russ asked, 2026-11-07)
+    const off = !occ || scheduledOn || runningOnRequest ? null
+      : /^bypass$/i.test(occTxt) ? el("div", { class: "off" }, "The unit is still on from a run request and stops by itself when the controller's run-on time is up.")
+      : el("div", { class: "off" }, `The schedule has this unit ${occTxt.toLowerCase()} right now. A new setpoint alone does not turn it on${tocc ? "; Run now does" : ""}.`);
 
     cards.push(el("div", { class: "unit", style: `--ac:${css(SERIES[i])}` },
       el("div", { class: "head" },
         el("div", {}, el("h3", {}, a.where), el("div", { class: "where" }, a.name)),
         el("div", { class: "now" }, "room now", el("b", {}, zn && zn.last_value != null ? `${Number(zn.last_value).toFixed(1)}°` : "–"))),
       el("div", { class: "stepper" }, minus, shown, plus),
-      el("div", { class: "lbl" }, "How long"), durs, go, back, msg, ovr, off));
+      el("div", { class: "lbl" }, "How long"), durs, go, run, stop, back, msg, ...notes, off));
   });
   if (!cards.length) { box.replaceChildren(el("div", { class: "card" }, "The air handler setpoints are not in the point list.")); return; }
-  box.replaceChildren(...cards, el("div", { class: "foot" }, "Changes reach the building within a minute, between 60° and 80°. Each one is recorded in the Audit tab with your name."));
+  box.replaceChildren(...cards, el("div", { class: "foot" }, "Changes reach the building within a minute; setpoints between 60° and 80°. Each one is recorded in the Audit tab with your name."));
 }
-async function sendAdjust(a, sp, value, release, dur) {
+async function sendAdjust(a, p, value, release, dur) {
   const st = state.adj[a.key]; st.err = "";
   if (demo) {   // pretend the church computer did it a few seconds later
-    const c = { id: Date.now(), created_at: new Date().toISOString(), point_id: sp.id, value: release ? null : value, priority: 8, release, duration_min: dur || null, created_by: state.user?.email || "demo", status: "pending" };
+    const c = { id: Date.now(), created_at: new Date().toISOString(), point_id: p.id, value: release ? null : value, priority: 8, release, duration_min: dur || null, created_by: state.user?.email || "demo", status: "pending" };
     state.cmds.unshift(c); drawAdjust();
     setTimeout(() => { c.status = "done"; c.executed_at = new Date().toISOString(); c.result = release ? "released" : `confirmed ${value}`;
-      sp.last_value = release ? 70 : value; sp.last_flags = release ? (sp.last_flags & ~FLAG.overridden) : (sp.last_flags | FLAG.overridden);
-      if (release) st.target = 70; drawAdjust(); }, 4000);
+      if (/ZN-TOCC$/.test(p.display_name)) { const occ = pt(`${a.fec}.EFF-OCC`); p.last_value = release ? 0 : 1; if (occ && !release) occ.last_value = 3; }
+      else { p.last_value = release ? 70 : value; p.last_flags = release ? (p.last_flags & ~FLAG.overridden) : (p.last_flags | FLAG.overridden); if (release) st.target = 70; }
+      drawAdjust(); }, 4000);
     return;
   }
-  try { await insertCommand(sp, value, release, dur || null); }
+  try { await insertCommand(p, value, release, dur || null); }
   catch (e) { st.err = /row-level security|permission/i.test(e.message || "") ? "Not sent: only admins may change setpoints." : "Not sent: " + (e.message || e); drawAdjust(); return; }
   refreshAdjust();
 }
