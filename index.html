@@ -1859,8 +1859,8 @@ function drawAdjust() {
     const shown = el("div", { class: "target", "aria-live": "polite" }, st.target != null ? adjNum(st.target) + "°" : "–",
       el("small", {}, cur == null ? "setpoint unknown" : st.target === cur ? "current setpoint" : `now ${adjNum(cur)}°, new setpoint`));
     const step = (d) => { if (st.target == null) return; st.target = Math.min(max, Math.max(min, Math.round((st.target + d) * 2) / 2)); st.err = ""; drawAdjust(); };
-    const minus = el("button", { "aria-label": `Lower ${a.where} setpoint`, onclick: () => step(-1) }, "−");
-    const plus = el("button", { "aria-label": `Raise ${a.where} setpoint`, onclick: () => step(1) }, "+");
+    const minus = el("button", { "aria-label": `Lower ${a.where} setpoint half a degree`, onclick: () => step(-0.5) }, "−");   // half-degree steps (Russ, 2026-11-07)
+    const plus = el("button", { "aria-label": `Raise ${a.where} setpoint half a degree`, onclick: () => step(0.5) }, "+");
     if (st.target != null && st.target <= min) minus.disabled = true;
     if (st.target != null && st.target >= max) plus.disabled = true;
 
@@ -1888,7 +1888,8 @@ function drawAdjust() {
     const back = (active || overridden) && !pending ? el("button", { class: "back", onclick: () => sendAdjust(a, sp, null, true, null) }, "Back to schedule now") : null;
 
     const occTxt = occ ? fmtVal(occ, occ.last_value) : "";
-    const off = occ && !/^(occupied|bypass)$/i.test(occTxt) ? el("div", { class: "off" }, `The unit is ${occTxt.toLowerCase()} on its schedule right now, so the new setpoint takes effect the next time it runs.`) : null;
+    // a setpoint does not start the unit; the time limit runs from now (Russ asked, 2026-11-07)
+    const off = occ && !/^(occupied|bypass)$/i.test(occTxt) ? el("div", { class: "off" }, `The schedule has this unit ${occTxt.toLowerCase()} right now. Changing the setpoint does not turn it on: the new setpoint is only used if the schedule runs the unit before the time limit is up.`) : null;
 
     cards.push(el("div", { class: "unit", style: `--ac:${css(SERIES[i])}` },
       el("div", { class: "head" },
