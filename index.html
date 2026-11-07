@@ -1811,7 +1811,7 @@ async function refreshAll() {
 // ------------------------------------------------------------------ Adjust tab (Russ, 2026-11-07: "change the temp for AHU1,2,3",
 // mostly from a phone). Each air handler's room setpoint (ZNT-SP) with big − / + buttons, a time limit and one Set button.
 // The page only files a request in hvac_commands; the church PC picks it up within a minute, checks it against its own
-// rule (60-80 °F), writes it at priority 8 (operator override), reads it back and marks the request done or failed.
+// rule (65-75 °F since 2026-11-07), writes it at priority 8 (operator override), reads it back and marks it done or failed.
 // A time limit makes the PC hand the setpoint back to the schedule by itself; "Back to schedule" does it now. Admins only:
 // the tab is hidden for others and the database refuses their requests (supabase\009_commands_admin.sql).
 // "Run now" (Russ, 2026-11-07): a setpoint alone does not start a unit the schedule has off, so the card also offers the
@@ -1854,7 +1854,7 @@ function drawAdjust() {
     const sp = pt(`${a.fec}.ZNT-SP`), zn = pt(`${a.fec}.ZN-T`), occ = pt(`${a.fec}.EFF-OCC`);
     const tocc = pt(`${a.fec}.ZN-TOCC`), bypass = pt(`${a.fec}.OCCMODE-BYPASSTIME`);
     if (!sp) return;
-    const rule = sp.command_rule || {}; const min = rule.min ?? 60, max = rule.max ?? 80;
+    const rule = sp.command_rule || {}; const min = rule.min ?? 65, max = rule.max ?? 75;   // 65-75 °F (Russ, 2026-11-07); − / + just stop there
     const cur = sp.last_value != null ? Number(sp.last_value) : null;
     const st = state.adj[a.key] || (state.adj[a.key] = { target: null, dur: 240, err: "" });
     if (st.target == null && cur != null) st.target = cur;
@@ -1935,7 +1935,7 @@ function drawAdjust() {
       el("div", { class: "lbl" }, "How long"), durs, go, run, stop, back, msg, ...notes, off));
   });
   if (!cards.length) { box.replaceChildren(el("div", { class: "card" }, "The air handler setpoints are not in the point list.")); return; }
-  box.replaceChildren(...cards, el("div", { class: "foot" }, "Changes reach the building within a minute; setpoints between 60° and 80°. Each one is recorded in the Audit tab with your name."));
+  box.replaceChildren(...cards, el("div", { class: "foot" }, "Changes reach the building within a minute. Each one is recorded in the Audit tab with your name."));
 }
 async function sendAdjust(a, p, value, release, dur) {
   const st = state.adj[a.key]; st.err = "";
@@ -2063,7 +2063,7 @@ function demoPoints() {
   [["FEC-6", 68.5, 71.3], ["FEC-7", 68.6, 68.0], ["FEC-8", 68.7, 68.2]].forEach(([fec, zn, da], i) => {
     out.push(mk(id++, `${fec}.ZN-T`, fec, "analog", "degrees-fahrenheit", zn, i === 2 ? 16 : 0));
     out.push(mk(id++, `${fec}.DA-T`, fec, "analog", "degrees-fahrenheit", da));
-    out.push(mk(id++, `${fec}.ZNT-SP`, fec, "analog", "degrees-fahrenheit", 70, i === 0 ? 4 : 0, null, { min: 60, max: 80, priority: 8, label: "Zone setpoint" }));
+    out.push(mk(id++, `${fec}.ZNT-SP`, fec, "analog", "degrees-fahrenheit", 70, i === 0 ? 4 : 0, null, { min: 65, max: 75, priority: 8, label: "Zone setpoint" }));
     out.push(mk(id++, `${fec}.SF-S`, fec, "binary", null, i === 1 ? 1 : 0, 0, ["Off", "On"]));
     // demo fan problems: AHU-1 commanded on but not running, AHU-3 VFD alarm, AHU-2 fine at 85 %
     out.push(mk(id++, `${fec}.SF-C`, fec, "binary", null, i <= 1 ? 1 : 0, 0, ["Off", "On"]));
