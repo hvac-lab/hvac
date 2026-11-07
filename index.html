@@ -93,6 +93,27 @@
   .ctl .name { font-weight: 600; } .ctl .name small { font-weight: 400; color: var(--muted); display: block; font-size: 12px; }
   .ctl .cur { font-variant-numeric: tabular-nums; }
   .ctl .last { font-size: 12px; color: var(--ink-2); }
+  /* Adjust tab (Russ, 2026-11-07): change an air handler's room setpoint from a phone; big touch targets, one column */
+  .adj { display: grid; gap: 14px; max-width: 560px; margin: 0 auto; }
+  .adj .unit { background: var(--surface); border: 1px solid var(--border); border-top: 5px solid var(--ac, var(--border)); border-radius: 18px; padding: 14px 16px; }
+  .adj .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .adj h3 { margin: 0; font-size: 19px; line-height: 1.2; } .adj .where { color: var(--muted); font-size: 13px; }
+  .adj .now { text-align: right; font-size: 12px; color: var(--muted); white-space: nowrap; } .adj .now b { display: block; font-size: 24px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .adj .stepper { display: grid; grid-template-columns: 68px 1fr 68px; align-items: center; gap: 10px; margin: 14px 0 8px; }
+  .adj .stepper button { height: 68px; font-size: 34px; font-weight: 600; line-height: 1; border-radius: 18px; padding: 0; touch-action: manipulation; user-select: none; }
+  .adj .target { text-align: center; font-size: 50px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+  .adj .target small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); margin-top: 6px; }
+  .adj .lbl { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .adj .durs { display: flex; gap: 6px; margin: 6px 0 12px; }
+  .adj .durs button { flex: 1 1 0; min-width: 0; padding: 11px 2px; font-size: 14px; border-radius: 10px; touch-action: manipulation; }
+  .adj .durs button.on { border-color: var(--s1); color: var(--s1); background: var(--band); font-weight: 650; }
+  .adj .go { width: 100%; padding: 15px; font-size: 17px; border-radius: 12px; touch-action: manipulation; }
+  .adj .back { width: 100%; margin-top: 8px; padding: 13px; font-size: 15px; border-radius: 12px; touch-action: manipulation; }
+  .adj .msg { margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+  .adj .msg.ok { color: var(--good); } .adj .msg.bad { color: var(--critical); } .adj .msg.wait { color: var(--s1); }
+  .adj .ovr { margin-top: 10px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--warning); font-size: 14px; }
+  .adj .off { margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .adj .foot { text-align: center; font-size: 13px; color: var(--muted); padding: 0 8px 8px; }
   .rules input[type=text] { width: 100%; min-width: 170px; } .rules select { padding: 4px 6px; } .rules input[type=number] { width: 72px; padding: 4px 6px; }
   .alert { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
   .alert time { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 110px; }
@@ -264,7 +285,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
+const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
 // The "Heating loop diagram" tab (key "loopmap", code kept below the ladder) is parked: Russ, 2026-11-06 evening, "Remove the Heating Loop Diagram".
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
@@ -508,8 +529,9 @@ function renderStatus() {
 // ------------------------------------------------------------------ tabs
 function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
-  if ((state.tab === "admin" && !state.admin) || !TABS.some(t => t[0] === state.tab)) state.tab = "temp";
-  for (const [key, label] of TABS) if (key !== "admin" || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+  const adminOnly = ["admin", "adjust"];   // Adjust changes the building, so admins only (Russ, 2026-11-07)
+  if ((adminOnly.includes(state.tab) && !state.admin) || !TABS.some(t => t[0] === state.tab)) state.tab = "temp";
+  for (const [key, label] of TABS) if (!adminOnly.includes(key) || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
   const on = nav.querySelector("button.on"); if (on && nav.scrollWidth > nav.clientWidth) on.scrollIntoView({ block: "nearest", inline: "center" });   // phone: one scrolling row
 }
 function renderTab() {
@@ -519,6 +541,7 @@ function renderTab() {
   main.classList.toggle("wide", state.tab === "map" || state.tab === "loopmap");
   if (state.tab === "details") renderDetails();
   else if (state.tab === "map") renderMap();
+  else if (state.tab === "adjust") renderAdjust();
   else if (state.tab === "loopmap") renderLoopMap();
   else if (state.tab === "boiler") renderBoilerRoom();
   else if (state.tab === "ahu") renderAhus();
@@ -1781,6 +1804,115 @@ async function refreshAll() {
     box.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load data: "), String(e.message || e)));
   }
   state.timer = setTimeout(refreshAll, 60000);
+}
+
+// ------------------------------------------------------------------ Adjust tab (Russ, 2026-11-07: "change the temp for AHU1,2,3",
+// mostly from a phone). Each air handler's room setpoint (ZNT-SP) with big − / + buttons, a time limit and one Set button.
+// The page only files a request in hvac_commands; the church PC picks it up within a minute, checks it against its own
+// rule (60-80 °F), writes it at priority 8 (operator override), reads it back and marks the request done or failed.
+// A time limit makes the PC hand the setpoint back to the schedule by itself; "Back to schedule" does it now. Admins only:
+// the tab is hidden for others and the database refuses their requests (supabase\009_commands_admin.sql).
+const ADJ_DURS = [[60, "1 hr"], [120, "2 hr"], [240, "4 hr"], [480, "8 hr"], [0, "No limit"]];
+function renderAdjust() {
+  state.adj = state.adj || {};
+  screen(el("div", { class: "adj", id: "adjust" }, el("div", { class: "hint" }, "Loading…")));
+  refreshAdjust();
+}
+async function loadAdjustCommands(ids) {
+  if (demo) return;   // demo keeps its own list in state.cmds
+  const { data, error } = await state.sb.from("hvac_commands").select("*").in("point_id", ids).order("id", { ascending: false }).limit(30);
+  if (error) throw new Error("hvac_commands: " + error.message);
+  state.cmds = data || [];
+}
+async function refreshAdjust() {
+  clearTimeout(state.timer);
+  const box = $("#adjust"); if (!box) return;
+  try {
+    await Promise.all([loadStatus(), demo ? null : loadPoints()]);
+    await loadAdjustCommands(AHUS.map(a => pt(`${a.fec}.ZNT-SP`)).filter(Boolean).map(p => p.id));
+    renderStatus(); drawAdjust();
+  } catch (e) { box.replaceChildren(el("div", { class: "card" }, el("b", {}, "Could not load: "), String(e.message || e))); }
+  // while a request is waiting for the building, look again every 8 s; otherwise once a minute
+  state.timer = setTimeout(refreshAdjust, state.cmds.some(c => c.status === "pending") ? 8000 : 60000);
+}
+function adjTime(iso) { return iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""; }
+function adjNum(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1); }
+function drawAdjust() {
+  const box = $("#adjust"); if (!box) return;
+  const cards = [];
+  AHUS.forEach((a, i) => {
+    const sp = pt(`${a.fec}.ZNT-SP`), zn = pt(`${a.fec}.ZN-T`), occ = pt(`${a.fec}.EFF-OCC`);
+    if (!sp) return;
+    const rule = sp.command_rule || {}; const min = rule.min ?? 60, max = rule.max ?? 80;
+    const cur = sp.last_value != null ? Number(sp.last_value) : null;
+    const st = state.adj[a.key] || (state.adj[a.key] = { target: null, dur: 240, err: "" });
+    if (st.target == null && cur != null) st.target = cur;
+    const mine = state.cmds.filter(c => c.point_id === sp.id);
+    const pending = mine.find(c => c.status === "pending");
+    const last = mine.find(c => c.status !== "pending");
+    const now = Date.now();
+    // a setpoint this site set and has not handed back yet (no time limit, or the limit has not run out)
+    const active = last && last.status === "done" && !last.release && !last.released_at &&
+      (!last.duration_min || new Date(last.executed_at || last.created_at).getTime() + last.duration_min * 60000 > now) ? last : null;
+    const overridden = !!(sp.last_flags & FLAG.overridden);
+
+    const shown = el("div", { class: "target", "aria-live": "polite" }, st.target != null ? adjNum(st.target) + "°" : "–",
+      el("small", {}, cur == null ? "setpoint unknown" : st.target === cur ? "current setpoint" : `now ${adjNum(cur)}°, new setpoint`));
+    const step = (d) => { if (st.target == null) return; st.target = Math.min(max, Math.max(min, Math.round((st.target + d) * 2) / 2)); st.err = ""; drawAdjust(); };
+    const minus = el("button", { "aria-label": `Lower ${a.where} setpoint`, onclick: () => step(-1) }, "−");
+    const plus = el("button", { "aria-label": `Raise ${a.where} setpoint`, onclick: () => step(1) }, "+");
+    if (st.target != null && st.target <= min) minus.disabled = true;
+    if (st.target != null && st.target >= max) plus.disabled = true;
+
+    const durs = el("div", { class: "durs", role: "group", "aria-label": "How long" },
+      ...ADJ_DURS.map(([m, t]) => el("button", { class: st.dur === m ? "on" : "", "aria-pressed": st.dur === m ? "true" : "false",
+        onclick: () => { st.dur = m; drawAdjust(); } }, t)));
+    const changed = st.target != null && cur != null && st.target !== cur;
+    const durText = st.dur ? `for ${ADJ_DURS.find(d => d[0] === st.dur)[1].replace("hr", "hours").replace("1 hours", "1 hour")}` : "with no time limit";
+    const go = el("button", { class: "primary go", onclick: () => sendAdjust(a, sp, st.target, false, st.dur) },
+      pending ? "Waiting for the building…" : changed ? `Set ${a.name} to ${adjNum(st.target)}° ${durText}` : `Setpoint is ${cur == null ? "–" : adjNum(cur) + "°"}`);
+    if (pending || !changed) go.disabled = true;
+
+    let msg = null;
+    if (st.err) msg = el("div", { class: "msg bad" }, st.err);
+    else if (pending) msg = el("div", { class: "msg wait" }, `Sent ${adjTime(pending.created_at)}. The church computer picks it up within a minute…`);
+    else if (last && now - new Date(last.executed_at || last.created_at).getTime() < 15 * 60000)
+      msg = last.status === "done" ? el("div", { class: "msg ok" }, last.release ? "Back on the schedule." : `Done: the building confirmed ${adjNum(Number(last.value))}°.`)
+                                   : el("div", { class: "msg bad" }, `Did not go through: ${last.result || "no reason given"}`);
+
+    let ovr = null;
+    if (active) {
+      const until = active.duration_min ? new Date(new Date(active.executed_at || active.created_at).getTime() + active.duration_min * 60000).toISOString() : null;
+      ovr = el("div", { class: "ovr" }, `Set to ${adjNum(Number(active.value))}° by ${(active.created_by || "").split("@")[0]}`, until ? `, back to the schedule at ${adjTime(until)}` : ", no time limit");
+    } else if (overridden) ovr = el("div", { class: "ovr" }, "This setpoint is overridden in Metasys right now.");
+    const back = (active || overridden) && !pending ? el("button", { class: "back", onclick: () => sendAdjust(a, sp, null, true, null) }, "Back to schedule now") : null;
+
+    const occTxt = occ ? fmtVal(occ, occ.last_value) : "";
+    const off = occ && !/^(occupied|bypass)$/i.test(occTxt) ? el("div", { class: "off" }, `The unit is ${occTxt.toLowerCase()} on its schedule right now, so the new setpoint takes effect the next time it runs.`) : null;
+
+    cards.push(el("div", { class: "unit", style: `--ac:${css(SERIES[i])}` },
+      el("div", { class: "head" },
+        el("div", {}, el("h3", {}, a.where), el("div", { class: "where" }, a.name)),
+        el("div", { class: "now" }, "room now", el("b", {}, zn && zn.last_value != null ? `${Number(zn.last_value).toFixed(1)}°` : "–"))),
+      el("div", { class: "stepper" }, minus, shown, plus),
+      el("div", { class: "lbl" }, "How long"), durs, go, back, msg, ovr, off));
+  });
+  if (!cards.length) { box.replaceChildren(el("div", { class: "card" }, "The air handler setpoints are not in the point list.")); return; }
+  box.replaceChildren(...cards, el("div", { class: "foot" }, "Changes reach the building within a minute, between 60° and 80°. Each one is recorded in the Audit tab with your name."));
+}
+async function sendAdjust(a, sp, value, release, dur) {
+  const st = state.adj[a.key]; st.err = "";
+  if (demo) {   // pretend the church computer did it a few seconds later
+    const c = { id: Date.now(), created_at: new Date().toISOString(), point_id: sp.id, value: release ? null : value, priority: 8, release, duration_min: dur || null, created_by: state.user?.email || "demo", status: "pending" };
+    state.cmds.unshift(c); drawAdjust();
+    setTimeout(() => { c.status = "done"; c.executed_at = new Date().toISOString(); c.result = release ? "released" : `confirmed ${value}`;
+      sp.last_value = release ? 70 : value; sp.last_flags = release ? (sp.last_flags & ~FLAG.overridden) : (sp.last_flags | FLAG.overridden);
+      if (release) st.target = 70; drawAdjust(); }, 4000);
+    return;
+  }
+  try { await insertCommand(sp, value, release, dur || null); }
+  catch (e) { st.err = /row-level security|permission/i.test(e.message || "") ? "Not sent: only admins may change setpoints." : "Not sent: " + (e.message || e); drawAdjust(); return; }
+  refreshAdjust();
 }
 
 // ------------------------------------------------------------------ controls (Phase 3), alerts and rules (Phase 2)
