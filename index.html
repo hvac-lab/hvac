@@ -205,9 +205,9 @@ const AHUS = [
   { key: "AHU-2", fec: "FEC-7", name: "AHU-2", where: "Kitchen and Dining" },
   { key: "AHU-3", fec: "FEC-8", name: "AHU-3", where: "Worship Area" },
 ];
-// Map tab: the floor plan lives in the private Supabase storage bucket "web" as map.png (upload with
-// `cli upload-file web\map.png`); allowed users get a signed link. Spots: x/y in percent of the picture's
-// width/height (the Map tab shows the pointer's x/y to help place them). Floor plan from Russ, 2026-11-05.
+// Map tab: the floor plan is map.png next to this page in the GitHub repo (public; Russ, 2026-11-07: "Move to GitHub",
+// so a collaborator can replace it with a commit; it lived in the private Supabase bucket "web" before). Spots: x/y in
+// percent of the picture's width/height (the Map tab shows the pointer's x/y to help place them). Plan from Russ, 2026-11-05.
 const MAP = {
   bucket: "web", image: "map.png",
   // The spots are laid out on a 1219 px wide picture (the first floor plan's size); a sharper picture of the same
@@ -760,14 +760,11 @@ function drawChart(holder, built, o = {}) {
 function fmtNum(v) { return v == null ? "" : Math.abs(v) >= 100 ? v.toFixed(0) : (Math.round(v * 10) / 10).toString(); }
 window.addEventListener("resize", () => { state.charts.forEach(c => c.setSize({ width: Math.min(c.root.parentElement.clientWidth, 1360), height: c.height })); });
 
-// ------------------------------------------------------------------ pictures (private storage bucket, signed links)
+// ------------------------------------------------------------------ pictures (map.png, boiler.png next to the page in the repo)
+// Until 2026-11-07 the pictures came from the private Supabase bucket "web" through signed links; Russ moved them into the
+// public GitHub repo so anyone with repo access can swap them. The old bucket copies are left in place, unused.
 async function imageUrl(name) {
-  if (demo) return name;
-  const c = state.imgs[name]; if (c && c.exp > Date.now()) return c.url;
-  const { data, error } = await state.sb.storage.from(MAP.bucket).createSignedUrl(name, 3600);
-  const url = error || !data ? name : data.signedUrl;
-  state.imgs[name] = { url, exp: Date.now() + 50 * 60000 };
-  return url;
+  return name;
 }
 
 // ------------------------------------------------------------------ Map tab
