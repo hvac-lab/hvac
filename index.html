@@ -209,6 +209,11 @@
   /* 12 tabs since Notes (2026-11-13): a little less padding on mid-size screens so Admin is not cut off; phones keep their scrolling row */
   @media (min-width: 601px) and (max-width: 1200px) { nav.tabs button { padding: 8px 9px; }
     nav.tabs { overflow-x: auto; scrollbar-width: none; } nav.tabs::-webkit-scrollbar { display: none; } }   /* tablets: one sideways-scrolling row like phones */
+  .filtBar { padding: 6px 10px 8px; font-size: 14px; border-top: 1px solid var(--border); margin-top: 2px; }
+  .filtHead { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  .filtBtns { display: flex; gap: 6px; } .filtDp { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+  .filtForm { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; } .filtForm input[type=date] { padding: 5px 6px; }
+  table.filtHist { margin-top: 8px; width: 100%; border-collapse: collapse; font-size: 13px; } table.filtHist th, table.filtHist td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
   ol.notes { margin: 0; padding-left: 26px; } ol.notes li { margin: 10px 0; } ol.notes li::marker { font-weight: 700; color: var(--ink-2); }
   ol.notes li .hint { margin-top: 4px; line-height: 1.55; color: var(--ink); font-size: 15px; }   /* full text colour: the greys were hard to read on the dark background (Russ, 2026-11-13, twice) */
   ol.notes li > b { font-size: 16px; } main section.card h2 + ol.notes { margin-top: 6px; }
@@ -618,7 +623,7 @@ const NOTES = [
     ["The sound room gets warm",
      "It warms 5-13 °F most mornings from about 8 AM, peaks around 9-10 AM (80.7 °F on Nov 13 at 10:08 AM) and falls back by noon, also on days when no air handler runs, so the church heating is not the cause: most likely morning sun, or equipment switched on. The room has no heating or cooling of its own: the mini-split on the plans (FCU-1 with outdoor unit CU-4) was never installed, only its temperature sensor. Options: blinds or sun film, the door open or a transfer grille, a small exhaust fan, or install the mini-split (a low-ambient model that can cool in winter; tied into Metasys it could get a setpoint on this page)."],
     ["Air filters",
-     "Pressure across them is steady at 0.29-0.32 in. w.c., which is fine. Nothing records when they were last changed; once their rated change-out value is known an alert can watch for it."],
+     "Pressure across them is steady at 0.29-0.32 in. w.c., which is fine. Filter changes are now logged on the Air handlers tab, under each unit (date, who, note, and the pressure drop the week before and after). Once their rated change-out value is known an alert can watch for it."],
     ["Dry air",
      "AHU-1's return air dropped to 24 % humidity. Normal for winter, but worth knowing for the piano and organ."],
     ["Floor zone 6 (Entry)",
@@ -1247,16 +1252,99 @@ function boilerRoomSvg() {
 const AHU_EXTRA = { "AHU-1": { valve: "3-way valve" }, "AHU-2": { valve: "2-way valve" }, "AHU-3": { valve: "3-way valve", dehum: "AHU-3 Folder.Dehumidification." } };
 function renderAhus() {
   const cards = AHUS.map((a, i) => el("div", { class: "card", style: `padding:6px 6px 2px;border-top:5px solid ${css(SERIES[i])};border-radius:18px` },
-    el("div", { id: "ahu-" + a.key, class: "ahusvg" }, "Loading…")));
+    el("div", { id: "ahu-" + a.key, class: "ahusvg" }, "Loading…"), el("div", { id: "filt-" + a.key, class: "filtBar" })));
   screen(...cards);
   refreshAhus();
 }
 async function refreshAhus() {
   clearTimeout(state.timer);
   if (!$("#ahu-" + AHUS[0].key)) return;
-  try { await Promise.all([loadStatus(), loadActiveAlerts(), demo ? null : loadPoints()]); renderStatus(); for (const a of AHUS) { const box = $("#ahu-" + a.key); if (box) box.innerHTML = ahuSvg(a); } }
+  try { await Promise.all([loadStatus(), loadActiveAlerts(), demo ? null : loadPoints()]); renderStatus(); for (const a of AHUS) { const box = $("#ahu-" + a.key); if (box) box.innerHTML = ahuSvg(a); }
+    await refreshFilters(); }
   catch (e) { const box = $("#ahu-" + AHUS[0].key); if (box) box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
   state.timer = setTimeout(refreshAhus, 60000);
+}
+// ------------------------------------------------------------------ air filter change log (Russ, 2026-11-13: "update the website on
+// when the air filters were changed and by who"; anyone signed in may log). Table hvac_filter_changes (supabase\016_filter_changes.sql):
+// ahu, changed_on, done_by (typed), note; logged_by = the signed-in email, set by the database. Under each air handler: the last change,
+// the filter pressure drop (FEC-n.FFILT-DP, in supabase.historyPoints since the same day) the week before and after it, the live
+// reading, a form to log a change and the history (a row can be deleted by whoever logged it or an admin).
+const dayOf = s => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d); };   // "2026-11-02" in local time, not UTC
+const fmtDay = s => dayOf(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const isoDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+async function loadFilterChanges() {
+  if (demo) { if (!state.filterDemo) state.filterDemo = [{ id: 1, ahu: "AHU-1", changed_on: "2026-10-02", done_by: "Demo Person", note: "20x25x2 MERV 8, very dirty", logged_by: "demo@example.org", logged_at: "2026-10-02T15:00:00Z" }];
+    return state.filterDemo.slice().sort((x, y) => y.changed_on.localeCompare(x.changed_on) || y.id - x.id); }
+  const { data, error } = await state.sb.from("hvac_filter_changes").select("*").order("changed_on", { ascending: false }).order("id", { ascending: false }).limit(300);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+// median of the 15-minute maxima with the fan running (above 0.05 in.), the week before the change day and the week after it
+async function filterDpAround(a, day) {
+  const p = pt(`${a.fec}.FFILT-DP`); if (!p) return null;
+  if (demo) return { before: 0.31, after: 0.13 };
+  const d0 = dayOf(day), from = new Date(d0.getTime() - 7 * 864e5), to = new Date(d0.getTime() + 8 * 864e5), next = d0.getTime() + 864e5;
+  const { data, error } = await state.sb.from("hvac_rollup_15m").select("ts,vmax").eq("point_id", p.id).gte("ts", from.toISOString()).lt("ts", to.toISOString()).gt("vmax", 0.05);
+  if (error) return null;
+  const med = xs => { if (!xs.length) return null; xs.sort((x, y) => x - y); return xs[Math.floor(xs.length / 2)]; };
+  return { before: med(data.filter(r => new Date(r.ts) < d0).map(r => r.vmax)), after: med(data.filter(r => new Date(r.ts).getTime() >= next).map(r => r.vmax)) };
+}
+async function refreshFilters(force) {
+  if (force || !state.filterAt || Date.now() - state.filterAt > 5 * 60000) {
+    try { state.filterChanges = await loadFilterChanges(); state.filterErr = null; } catch (e) { state.filterErr = e.message || String(e); }
+    state.filterDp = state.filterDp || {};
+    for (const a of AHUS) { const last = (state.filterChanges || []).find(r => r.ahu === a.key);
+      if (last) { const k = `${a.key}|${last.changed_on}`; try { state.filterDp[k] = await filterDpAround(a, last.changed_on); } catch { state.filterDp[k] = null; } } }
+    state.filterAt = Date.now();
+  }
+  for (const a of AHUS) drawFilterBar(a);
+}
+function drawFilterBar(a, mode) {
+  const box = $("#filt-" + a.key); if (!box) return;
+  if (!mode && box.dataset.mode && box.dataset.mode !== "view") return;   // a form or the history is open: the minute refresh leaves it alone
+  box.dataset.mode = mode || "view";
+  const rows = (state.filterChanges || []).filter(r => r.ahu === a.key), last = rows[0];
+  const dpPt = pt(`${a.fec}.FFILT-DP`), fanOn = Number(pt(`${a.fec}.SF-S`)?.last_value) === 1;
+  const inch = v => v == null ? "–" : `${Number(v).toFixed(2)} in.`;
+  const days = last ? Math.round((new Date().setHours(0, 0, 0, 0) - dayOf(last.changed_on)) / 864e5) : null;
+  const line = el("div", { class: "filtLine" }, el("b", {}, "Air filters: "),
+    state.filterErr ? `could not load the log (${state.filterErr})` : last ? el("span", {}, "last changed ", el("b", {}, fmtDay(last.changed_on)), " by ", el("b", {}, last.done_by),
+      days != null ? ` (${days === 0 ? "today" : days === 1 ? "yesterday" : days + " days ago"})` : "", last.note ? ` · ${last.note}` : "") : "no change logged yet");
+  const dp = last && state.filterDp && state.filterDp[`${a.key}|${last.changed_on}`];
+  const dpLine = el("div", { class: "filtDp" }, "Pressure drop across them: ",
+    dp && (dp.before != null || dp.after != null) ? el("span", {}, `${inch(dp.before)} the week before, ${dp.after == null ? "after: not yet measured" : inch(dp.after) + " after"} · `) : "",
+    dpPt && dpPt.last_value != null ? (fanOn ? `now ${inch(dpPt.last_value)}` : "now: fan off") : "now –", " (about 0.5 in. or more = time to change)");
+  const btnLog = el("button", { class: "small", onclick: () => drawFilterBar(a, "form") }, "Log a filter change");
+  const btnHist = el("button", { class: "small", onclick: () => drawFilterBar(a, mode === "history" ? "view" : "history") }, mode === "history" ? "Hide history" : `History (${rows.length})`);
+  const kids = [el("div", { class: "filtHead" }, el("div", {}, line, dpLine), el("div", { class: "filtBtns" }, btnLog, btnHist))];
+  if (mode === "form") {
+    const date = el("input", { type: "date", value: isoDay(new Date()), max: isoDay(new Date(Date.now() + 864e5)) });
+    const who = el("input", { type: "text", placeholder: "Who changed them", maxlength: "80" });
+    const note = el("input", { type: "text", placeholder: "Note (optional): size, type, how dirty", maxlength: "500", style: "flex:1;min-width:200px" });
+    const msg = el("span", { class: "hint" });
+    const save = el("button", { class: "small", onclick: async () => {
+      const row = { ahu: a.key, changed_on: date.value, done_by: who.value.trim(), note: note.value.trim() || null };
+      if (!row.changed_on) { msg.textContent = "Pick the date."; return; } if (!row.done_by) { msg.textContent = "Who changed them?"; who.focus(); return; }
+      save.disabled = true; msg.textContent = "Saving…";
+      try {
+        if (demo) state.filterDemo.push({ ...row, id: Date.now(), logged_by: state.user?.email || "demo@example.org", logged_at: new Date().toISOString() });
+        else { const { error } = await state.sb.from("hvac_filter_changes").insert(row); if (error) throw new Error(error.message); }
+        box.dataset.mode = "view"; await refreshFilters(true);
+      } catch (e) { msg.textContent = "Could not save: " + (e.message || e); save.disabled = false; } } }, "Save");
+    kids.push(el("div", { class: "filtForm" }, el("label", {}, "Date ", date), who, note, save, el("button", { class: "small", onclick: () => drawFilterBar(a, "view") }, "Cancel"), msg));
+    setTimeout(() => who.focus(), 0);
+  }
+  if (mode === "history") {
+    const me = String(state.user?.email || "").toLowerCase();
+    kids.push(rows.length ? el("table", { class: "filtHist" }, el("thead", {}, el("tr", {}, ...["Changed", "By", "Note", "Logged by", ""].map(h => el("th", {}, h)))),
+      el("tbody", {}, ...rows.map(r => el("tr", {}, el("td", {}, fmtDay(r.changed_on)), el("td", {}, r.done_by), el("td", {}, r.note || ""), el("td", { class: "hint" }, r.logged_by || ""),
+        el("td", {}, (state.admin || (r.logged_by || "").toLowerCase() === me) ? el("button", { class: "small danger", title: "Delete this entry (a mistake)", onclick: async () => {
+          if (!confirm(`Delete the filter change of ${fmtDay(r.changed_on)} by ${r.done_by}?`)) return;
+          try { if (demo) state.filterDemo = state.filterDemo.filter(x => x.id !== r.id);
+            else { const { error } = await state.sb.from("hvac_filter_changes").delete().eq("id", r.id); if (error) throw new Error(error.message); }
+            await refreshFilters(true); drawFilterBar(a, "history"); } catch (e) { alert("Could not delete: " + (e.message || e)); } } }, "✕") : ""))))) : el("p", { class: "hint" }, "No filter changes logged for " + a.key + " yet."));
+  }
+  box.replaceChildren(...kids);
 }
 function ahuSvg(a) {
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]));
