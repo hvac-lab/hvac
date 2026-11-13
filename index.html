@@ -183,7 +183,7 @@
   .sched .seg { position: absolute; top: 0; bottom: 0; border-radius: 6px; opacity: .9; }
   .sched .now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--critical); }
   .sched .times { grid-column: 3; font-size: 12px; color: var(--ink-2); }
-  /* Process Map (admins, opened from the Admin page): flowcharts drawn as SVG by renderProcessMap(); a phone swipes the drawing, not the page */
+  /* Process Map (admins, under the user list on the Admin tab): flowcharts drawn as SVG by processMapParts(); a phone swipes the drawing, not the page */
   .pmx-wrap { overflow-x: auto; } .pmx-wrap svg { display:block; width: 100%; min-width: 860px; height: auto; }
   .pmx-band { fill: var(--hover); } .pmx-bl { font-size: 11px; font-weight: 650; letter-spacing: .06em; fill: var(--muted); }
   .pmx-box { fill: var(--surface); stroke-width: 2; } .pmx-dec { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.5; }
@@ -202,7 +202,9 @@
     table.pmx-list td { display: block; } table.pmx-list td:first-child { width: auto; white-space: normal; padding-bottom: 0; }
     table.pmx-list td + td { border-top: none; padding-top: 2px; }
     table.pmx-list.three thead { display: none; } table.pmx-list.three td:last-child { width: auto; font-size: 13px; }
-    table.pmx-list.three td:last-child::before { content: "Account: "; font-weight: 600; } }
+    table.pmx-list.three td:last-child::before { content: "Account: "; font-weight: 600; }
+    table.pmx-list.three.alerts td:last-child::before { content: "Level: "; } }
+  h3.pmx-title { font-size: 18px; margin: 26px 0 12px; }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
     /* Phone header and tabs take as little height as possible (Russ, 2026-11-06 evening: the tabs took half the screen
@@ -308,7 +310,7 @@ const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readEr
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
 const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
-// The Process Map (key "pmap", admins only) is not a tab: a link at the bottom of the Admin page opens it (Russ, 2026-11-13).
+// The Process Map is not a tab: it sits under the user list on the Admin tab (Russ, 2026-11-13).
 // The "Heating loop diagram" tab (key "loopmap", code kept below the ladder) is parked: Russ, 2026-11-06 evening, "Remove the Heating Loop Diagram".
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
@@ -552,10 +554,9 @@ function renderStatus() {
 // ------------------------------------------------------------------ tabs
 function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
-  const adminOnly = ["admin", "adjust", "pmap"];   // Adjust changes the building, so admins only (Russ, 2026-11-07); the Process Map too
-  if ((adminOnly.includes(state.tab) && !state.admin) || (!TABS.some(t => t[0] === state.tab) && state.tab !== "pmap")) state.tab = "temp";
-  const shown = state.tab === "pmap" ? "admin" : state.tab;   // the Process Map belongs to the Admin page
-  for (const [key, label] of TABS) if (!adminOnly.includes(key) || state.admin) nav.append(el("button", { class: key === shown ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+  const adminOnly = ["admin", "adjust"];   // Adjust changes the building, so admins only (Russ, 2026-11-07)
+  if ((adminOnly.includes(state.tab) && !state.admin) || !TABS.some(t => t[0] === state.tab)) state.tab = "temp";
+  for (const [key, label] of TABS) if (!adminOnly.includes(key) || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
   const on = nav.querySelector("button.on"); if (on && nav.scrollWidth > nav.clientWidth) on.scrollIntoView({ block: "nearest", inline: "center" });   // phone: one scrolling row
 }
 function renderTab() {
@@ -574,7 +575,6 @@ function renderTab() {
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
   else if (state.tab === "admin") renderAdmin();
-  else if (state.tab === "pmap") renderProcessMap();
   else renderTemperature();
 }
 
@@ -1708,7 +1708,7 @@ async function adminCall(fn, args) {
 // cloud push, alerts, commands, page hosting), change it here too and move PMAP_UPDATED. Drawn as SVG in a fixed
 // frame; coordinates are by hand and an arrow ends at the edge of the box it points to.
 const PMAP_UPDATED = "2026-11-13";   // also: cloud history for 28 points only (supabase.historyPoints)
-function renderProcessMap() {
+function processMapParts() {
   const K = { gear: "var(--muted)", jci: "var(--s2)", pc: "var(--s1)", web: "var(--s3)", people: "var(--s7)", hand: "var(--s4)" };
   const S = (tag, attrs = {}, ...kids) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
     for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) n.setAttribute(k, v);
@@ -1788,10 +1788,12 @@ function renderProcessMap() {
     box(455, 290, 200, 55, "jci", ["The schedule’s setpoint", "takes over again"]));
 
   const rows = (list) => el("table", { class: "pmx-list" }, el("tbody", {}, ...list.map(([a, b]) => el("tr", {}, el("td", {}, a), el("td", {}, b)))));
-  screen(
-    el("p", { style: "margin: 0 0 12px" }, el("a", { href: "#", style: "color: var(--s1); font-weight: 600", onclick: (e) => { e.preventDefault(); state.tab = "admin"; renderTab(); window.scrollTo(0, 0); } }, "← Back to Admin")),
+  return [
+    el("h3", { class: "pmx-title" }, "Process Map"),
     el("section", { class: "card" }, el("h2", {}, "How the data gets to the cloud"), legend, el("div", { class: "pmx-wrap" }, data), swipe(),
       el("p", { class: "hint", style: "margin:6px 0 0" }, "The PC only reads from Metasys here; the one way anything is written is the temperature change below. Dashed: Supabase itself warns when the PC goes quiet.")),
+    // filled by drawPmapAlerts() from the live rules, so the list follows any change to them (Russ, 2026-11-13)
+    el("section", { class: "card", id: "pmapAlerts" }, el("h2", {}, "Which alerts are watched"), el("p", { class: "hint" }, "Loading…")),
     el("section", { class: "card" }, el("h2", {}, "Changing a temperature from this website"), el("div", { class: "pmx-wrap" }, change), swipe(),
       el("p", { class: "hint", style: "margin:6px 0 0" }, "Priority 8 is the same “operator override” the Metasys screen makes. A setpoint does not start a unit the schedule has off; “Run now” does that the same way, with the temporary-occupancy switch.")),
     el("section", { class: "card" }, el("h2", {}, "How often"), rows([
@@ -1833,14 +1835,35 @@ function renderProcessMap() {
       ["hvac.morrisnorth.org", "DNS record CNAME hvac \u2192 hvac-lab.github.io (Russ, 2026-11-05). GitHub repository hvac-lab/hvac \u203a Settings \u203a Pages holds the same name as its custom domain, with Enforce HTTPS on (GitHub makes the certificate)."],
       ["stream.morrisnorth.org", "The stream status page, the same way: CNAME stream \u2192 hvac-lab.github.io (2026-11-09), repository hvac-lab/stream."],
       ["If an address stops working", "Check the CNAME record in GoDaddy (DNS for morrisnorth.org) and the custom domain under the repository's Settings \u203a Pages; GitHub sends its own hvac-lab.github.io addresses on to these names, so the DNS record must be right."]])),
-    el("p", { class: "hint", style: "text-align:center" }, `Map updated ${new Date(PMAP_UPDATED + "T12:00").toLocaleDateString()} · only admins see this page`));
+    el("p", { class: "hint", style: "text-align:center" }, `Map updated ${new Date(PMAP_UPDATED + "T12:00").toLocaleDateString()} · only admins see this`)];
+}
+// The alert rules the PC checks after every read (hvac_alert_rules), in plain words, plus Supabase's own watchdog
+function drawPmapAlerts() {
+  const box = $("#pmapAlerts"); if (!box) return;
+  const pname = (id) => state.points.find(p => p.id === id)?.display_name || `point ${id}`;
+  const where = (n) => { const a = AHUS.find(x => n.startsWith(x.fec + "."));
+    return a ? `${a.name} (${a.where}) room` : n.startsWith("FEC-9.") ? "Sound Room (FCU-1)" : n.startsWith("FEC-10.") ? "Vestibule (cabinet heaters)" : n; };
+  const dur = (m) => m >= 60 && m % 60 === 0 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} minutes`;
+  const deg = (n) => /-T$|-SP$/.test(n) ? " °F" : "";
+  const when = (r) => { const n = pname(r.point_id), w = where(n);
+    const what = r.condition === "below" || r.condition === "above" ? `${w} ${r.condition} ${r.threshold}${deg(n)}`
+      : r.condition === "deviation" ? `${w} more than ${r.threshold}° from its setpoint`
+      : r.condition === "unreliable" ? `${w} sensor reports Unreliable`
+      : r.condition === "read_error" ? "The Metasys engine does not answer" : `${n} ${CONDITIONS[r.condition] || r.condition} ${r.threshold ?? ""}`;
+    return `${what} for ${dur(r.for_minutes)}`; };
+  const rows = state.rules.map(r => [r.name, when(r), r.enabled ? r.level : `${r.level} (off)`]);
+  rows.push(["PC silent", "No data from the church PC for 10 minutes (Supabase checks this itself, every 10 minutes)", "phone only"]);
+  box.replaceChildren(el("h2", {}, "Which alerts are watched"),
+    el("table", { class: "pmx-list three alerts" },
+      el("thead", {}, el("tr", {}, el("th", {}, "Alert"), el("th", {}, "When it goes off"), el("th", {}, "Level"))),
+      el("tbody", {}, ...rows.map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b), el("td", {}, c))))),
+    el("p", { class: "hint", style: "margin:6px 0 0" }, "Each alert sends a phone push (ntfy) when it starts, again every 24 hours while it lasts, and when it clears; warning and critical alerts also go by email to russ.koehl@morrisnorth.org. The PC checks the rules after every read and picks up changed rules every 5 minutes; they are listed under Details › Alert rules."));
 }
 
 function renderAdmin() {
-  screen(el("div", { class: "card", id: "adminList" }, "Loading…"),
-    el("p", { style: "text-align:center; margin: 18px 0 6px" }, el("a", { href: "#", style: "color: var(--s1); font-weight: 600", onclick: (e) => { e.preventDefault(); state.tab = "pmap"; renderTab(); window.scrollTo(0, 0); } },
-      "Process Map"), el("span", { class: "hint" }, " · how the data moves and how a temperature change reaches Metasys")));
+  screen(el("div", { class: "card", id: "adminList" }, "Loading…"), ...processMapParts());   // the Process Map under the users (Russ, 2026-11-13)
   refreshAdmin();
+  loadExtras().then(drawPmapAlerts).catch(() => { const b = $("#pmapAlerts"); if (b) b.replaceChildren(el("h2", {}, "Which alerts are watched"), el("p", { class: "hint" }, "Could not load the alert rules.")); });
 }
 async function refreshAdmin(note) {
   const box = $("#adminList"); if (!box) return;
