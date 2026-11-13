@@ -196,6 +196,9 @@
   table.pmx-list { width: 100%; border-collapse: collapse; font-size: 14px; } table.pmx-list td { padding: 6px 8px; border-top: 1px solid var(--grid); vertical-align: top; }
   table.pmx-list tr:first-child td { border-top: none; } table.pmx-list td:first-child { font-weight: 600; white-space: nowrap; width: 1%; }
   @media (max-width: 760px) { .pmx-swipe { display: block; } }
+  @media (max-width: 600px) {   /* phone: the name above its text, not a squeezed second column */
+    table.pmx-list td { display: block; } table.pmx-list td:first-child { width: auto; white-space: normal; padding-bottom: 0; }
+    table.pmx-list td + td { border-top: none; padding-top: 2px; } }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
     /* Phone header and tabs take as little height as possible (Russ, 2026-11-06 evening: the tabs took half the screen
@@ -1800,6 +1803,26 @@ function renderProcessMap() {
       ["Google", "Sign-in with a Google account; Gmail sends the alert and sign-in emails."],
       ["ntfy.sh", "Push messages to phones for alerts."],
       ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet."]])),
+    // Russ, 2026-11-13: document how the PC reaches out, where the code is and how to change it, and GoDaddy
+    el("section", { class: "card" }, el("h2", {}, "How the PC connects: it calls out, nothing reaches in"), rows([
+      ["Metasys engine", "BACnet over the church network only (UDP 47808, to 192.168.1.10). The PC's one inbound firewall rule lets answers in from that engine alone, and only for the poller program."],
+      ["Supabase", "HTTPS out to fyekpmmdpmsqgqmlsalc.supabase.co every minute: sends the readings, asks \u201cany pending requests?\u201d, reports the result. It uses a secret key stored encrypted on the PC."],
+      ["ntfy.sh", "HTTPS out, only when an alert starts, clears or repeats: the push to phones."],
+      ["Gmail", "Secure email out (smtp.gmail.com, port 465), for warning and critical alerts; the app password is stored encrypted on the PC."],
+      ["Browsers", "Phones and computers load the page from GitHub and read Supabase. They never talk to the church PC, and the router has no port opened to it."],
+      ["If the PC is off", "Nothing breaks in the building; the page shows the last values and Supabase itself pushes \u201cpoller silent\u201d after 10 minutes."]])),
+    el("section", { class: "card" }, el("h2", {}, "Where the code is and how to change it"), rows([
+      ["This web page", el("span", {}, "On GitHub, public repository ", el("a", { href: "https://github.com/hvac-lab/hvac", target: "_blank", rel: "noopener", style: "color: var(--s1)" }, "github.com/hvac-lab/hvac"),
+        " (GitHub account hvac-lab), published by GitHub Pages from the main branch. Files: index.html (the whole page), config.js (Supabase address and its public key), map.png (floor plan), boiler.png.")],
+      ["To change the page", "Open index.html on GitHub, click the pencil (Edit), change it, then Commit changes; hvac.morrisnorth.org shows it within about a minute. Test it first on the church PC: the same file is C:\\Data\\RussKoehl-Metasys-HVAC\\web\\index.html, shown with demo data at http://localhost:8080/?demo=1. Keep the PC copy and GitHub the same. A new floor plan: Add file \u203a Upload files, same framing as the old picture."],
+      ["The PC's programs", "Only on the church PC, in C:\\Data\\RussKoehl-Metasys-HVAC (not on GitHub): hvac\\ = the Python poller, scripts\\ = PowerShell tools, config\\settings.json = every setting, README.md = how everything works. After a change, scripts\\Stop-Hvac.ps1 and Windows restarts the poller within 15 minutes."],
+      ["The database", "supabase.com, project \u201chvac-lab's Project\u201d; sign in with GitHub as hvac-lab. Table and function changes are the files in the PC's supabase\\ folder, run in the SQL editor."],
+      ["Never on GitHub", "Passwords and keys. They are entered once on the PC with scripts\\Setup-Secrets.ps1 and stored encrypted for that Windows user."]])),
+    el("section", { class: "card" }, el("h2", {}, "The web address (GoDaddy)"), rows([
+      ["morrisnorth.org", "Registered at GoDaddy, which also runs its DNS (the name servers are GoDaddy's domaincontrol.com). Russ manages the account; the domain must stay renewed there or both pages stop."],
+      ["hvac.morrisnorth.org", "DNS record CNAME hvac \u2192 hvac-lab.github.io (Russ, 2026-11-05). GitHub repository hvac-lab/hvac \u203a Settings \u203a Pages holds the same name as its custom domain, with Enforce HTTPS on (GitHub makes the certificate)."],
+      ["stream.morrisnorth.org", "The stream status page, the same way: CNAME stream \u2192 hvac-lab.github.io (2026-11-09), repository hvac-lab/stream."],
+      ["If an address stops working", "Check the CNAME record in GoDaddy (DNS for morrisnorth.org) and the custom domain under the repository's Settings \u203a Pages; GitHub sends its own hvac-lab.github.io addresses on to these names, so the DNS record must be right."]])),
     el("p", { class: "hint", style: "text-align:center" }, `Map updated ${new Date(PMAP_UPDATED + "T12:00").toLocaleDateString()} · only admins see this page`));
 }
 
