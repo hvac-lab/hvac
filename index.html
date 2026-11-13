@@ -274,7 +274,7 @@ const MAP = {
     { label: "Outdoor", point: "FEC-6.OA-T", hum: "FEC-6.OA-H", x: 69, y: 27 },   // over the patio (Russ, 2026-11-05)
     // Other sensors the plan set shows (HVAC plan M2.2 / hydronic plan M3.2): FCU-1 in the Sound Room (FEC-9),
     // the vestibule cabinet heaters CUH-1/2 whose controller FEC-10 has its own zone sensor.
-    { label: "Sound Room (FCU-1)", point: "FEC-9.FCU1-ZN-T", x: 54, y: 91.8, sm: true },   // box bottom near the outside wall (Russ, 2026-11-06)
+    { label: "Sound Room", point: "FEC-9.FCU1-ZN-T", x: 54, y: 91.8, sm: true },   // box bottom near the outside wall (Russ, 2026-11-06)
     { label: "Vestibule (CUH-1/2)", point: "FEC-10.ZN-T", x: 7, y: 74, sm: true },   // box bottom on the wall below it (Russ, 2026-11-06)
     // In-floor slab zones. x/y = where the box sits (the floor area the zone heats, judged from the tubing on hydronic
     // plan M3.2); sx/sy = the S1 slab sensor beside manifold MAN-N. Re-measured 2026-11-06 evening from the plan set:
@@ -614,13 +614,35 @@ const NOTES = [
      "Occupied averages were 68.6, 68.9 and 69.3 °F against 70 °F. That is by design: heating holds the room at the setpoint minus 1.5 °F. If people say it feels cool, raise the setpoint by 1 °F."]]],
   ["Keep an eye on / maintenance", [
     ["The sound room gets warm",
-     "It averages about 75 °F at mid-morning and reached 80.7 °F on Nov 13 at 10:08 AM, hard on the streaming equipment. Its fan-coil (FCU-1) only reports a room temperature to Metasys, no setpoint or on/off, so we cannot tell whether it is working."],
+     "It warms 5-13 °F most mornings from about 8 AM, peaks around 9-10 AM (80.7 °F on Nov 13 at 10:08 AM) and falls back by noon, also on days when no air handler runs, so the church heating is not the cause: most likely morning sun, or equipment switched on. The room has no heating or cooling of its own: the mini-split on the plans (FCU-1 with outdoor unit CU-4) was never installed, only its temperature sensor. Options: blinds or sun film, the door open or a transfer grille, a small exhaust fan, or install the mini-split (a low-ambient model that can cool in winter; tied into Metasys it could get a setpoint on this page)."],
     ["Air filters",
      "Pressure across them is steady at 0.29-0.32 in. w.c., which is fine. Nothing records when they were last changed; once their rated change-out value is known an alert can watch for it."],
     ["Dry air",
      "AHU-1's return air dropped to 24 % humidity. Normal for winter, but worth knowing for the piano and organ."],
     ["Floor zone 6 (Entry)",
-     "Its valve never opened and its sensor reads in coarse steps (only 8 different values all week). The floor stayed at 70-72 °F anyway, so it is probably fine; have it checked at the next visit."]]]];
+     "Its valve never opened and its sensor reads in coarse steps (only 8 different values all week). The floor stayed at 70-72 °F anyway, so it is probably fine; have it checked at the next visit."]]],
+  // Russ, 2026-11-13: "what can we adjust in Metasys to make it more efficient / save money" - "add both" (with the FCU-1 fix)
+  ["Ways to save: Metasys settings (biggest first)", [
+    ["Match the air-handler schedules to real use (free)",
+     "Each air handler is scheduled about 47-62 hours a week: Sunday from 4:00 AM (AHU-2 Kitchen/Dining until 8:50 PM), every Wednesday although services are only the 1st and 3rd, Thursday 6 AM-6 PM on all three, Friday (added Nov 6; AHU-3 from 4:00 AM) and Saturday afternoons. Remove hours nobody uses, put one-time and every-other-week events on the calendar (exception schedule) instead of the weekly schedule, start Sundays at 5:30-6:00 AM or use optimal start, and delete the leftover 5-minute entries."],
+    ["Run the kitchen exhaust fan EF-3 only when cooking",
+     "It runs whenever AHU-2's schedule is on (about 47 hours a week), pulling heated air out through the hood while cold air leaks in to replace it, a big reason the building is under negative pressure. A switch or timer button at the hood would do; the restroom fans can stay on the schedule."],
+    ["Lower the heating-pump pressure setpoint (contractor)",
+     "CP-2 runs at 92-100 % around the clock to hold 5 psi while the water comes back only 2.5 °F cooler. Try 3-4 psi and check that the rooms still reach setpoint; a pump at 70 % speed uses about a third of the power. It also helps the next item."],
+    ["Stop Boiler-1 short-cycling (contractor)",
+     "350 starts in 8 days. Ask for a minimum off-time (anti-short-cycle) and a wider on/off band on the boiler: less gas and less wear."],
+    ["Lower the hot-water temperature curve (contractor)",
+     "Now 140 °F at 0 °F outdoors down to 110 °F at 60 °F. The boilers are condensing boilers, most efficient with cooler water; about 10 °F lower (e.g. 130 → 100 °F) usually saves a few percent of gas. Go in steps and watch the coldest days."],
+    ["Shut the heating plant off sooner in mild weather (free)",
+     "The plant stays enabled up to 65 °F outdoors (HTGOATLOCKOUT-SP). 55-60 °F keeps the boilers and the pump off on mild days; the floor heating already stops at 60 °F."],
+    ["Floor (slab) heating setback (free)",
+     "All 11 floor zones hold 70 °F around the clock, zones 1 and 4 (Worship east, Nursery/Hall) 72 °F. Bring 1 and 4 to 70 °F; on days without events about 66-67 °F is safe. Not deeper: a slab takes many hours to warm back up."],
+    ["Vestibule on the building schedule (free)",
+     "It holds 70 °F around the clock; on the schedule it would use its 60 °F night setting. Fixing its heater fans (item 2) would also heat it with less hot water."],
+    ["Air-handler fan speed (contractor / balancer)",
+     "The supply fans always run at 100 % (return fans 90 %). If the balancer confirms enough air at 80 %, fan power while running drops by about half."],
+    ["How to go about it",
+     "Already good, leave as is: night setback 60 °F heating / 78 °F cooling, the hot-water recirculation pumps on a schedule, fans off overnight. Free ones you can do in Metasys yourself: items 14, 19, 20 and 21; the rest are for the contractor. Make one change at a time and watch this page for a week before the next."]]]];
 function renderNotes() {
   let n = 0;
   screen(...NOTES.map(([title, items]) => el("section", { class: "card" }, el("h2", {}, title),
@@ -1608,7 +1630,7 @@ function loopMapSvg() {
 // damper (M2.2, 16x14 duct); EF-2 ceiling-mounted in the toilet room by the crib rooms, 8" up to a gooseneck on the roof
 // (M2.2, M5.2 detail 4); EF-3 on the roof for the kitchen grilles and the dishwasher hood, through a motorized damper
 // (M2.2, M5.2 details 6 and 9). RCP-1 / RCP-2 are the recirculation pumps on the water heaters WH-1 / WH-2 (plumbing
-// sheets; RCP-2 with the mixing valve TMV-1), not radiant panels. FCU-1 is the Sound Room fan coil with its condensing
+// sheets; RCP-2 with the mixing valve TMV-1), not radiant panels. FCU-1 was to be the Sound Room fan coil (a mini-split; NEVER INSTALLED, Russ 2026-11-13) with its condensing
 // unit CU-4 outside (M2.2); the engine only reads its room temperature.
 const FANS = [
   { id: "EF-1", p: "EF1", where: "Men's & women's restrooms", how: "on the roof · 16x14 duct · motorized damper", detail: "M2.2" },
@@ -1665,9 +1687,11 @@ function fansSvg() {
     s += label(x + 20, y + 36, wh, "middle", 7);
   });
   s += `<rect x="676" y="${y0}" width="304" height="118" rx="12" fill="none" stroke="${k.grid}" stroke-width="1.2"/>`;
-  s += label(690, y0 + 22, "FCU-1 · SOUND ROOM", "start", 11, k.ink, 700) + label(690, y0 + 36, "fan coil with condensing unit CU-4 outside (M2.2)", "start", 7.5);
-  s += `<rect x="700" y="${y0 + 48}" width="110" height="52" rx="6" fill="${k.surface}" stroke="${k.ink2}" stroke-width="1.4"/>` + fan(755, y0 + 70, false, false, 12) + label(755, y0 + 94, "FCU-1", "middle", 8, k.ink2, 700);
-  s += label(900, y0 + 70, num("FEC-9.FCU1-ZN-T", 1), "middle", 24, k.ink, 700) + label(900, y0 + 86, "°F in the Sound Room", "middle", 8.5) + label(900, y0 + 98, "the engine only reads the temperature here", "middle", 7);
+  // FCU-1 / CU-4 (a mini-split on sheet M2.2) was planned but never installed (Russ, 2026-11-13): only its room
+  // temperature sensor was wired to FEC-9, so the box is drawn dashed and empty
+  s += label(690, y0 + 22, "SOUND ROOM", "start", 11, k.ink, 700) + label(690, y0 + 36, "mini-split FCU-1 / CU-4 planned (M2.2), never installed", "start", 7.5);
+  s += `<rect x="700" y="${y0 + 48}" width="110" height="52" rx="6" fill="none" stroke="${k.muted}" stroke-width="1.2" stroke-dasharray="4 3"/>` + label(755, y0 + 72, "no unit", "middle", 9, k.muted, 700) + label(755, y0 + 86, "sensor only", "middle", 7.5);
+  s += label(900, y0 + 70, num("FEC-9.FCU1-ZN-T", 1), "middle", 24, k.ink, 700) + label(900, y0 + 86, "°F in the Sound Room", "middle", 8.5) + label(900, y0 + 98, "no heating or cooling of its own", "middle", 7);
   s += label(500, 408, "after sheets M2.2, M5.2 and the plumbing sheets (WSN, 2013); live values from the logger", "middle", 8);
   return `<svg viewBox="0 0 1000 418" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
 }
@@ -1972,7 +1996,7 @@ function drawPmapAlerts() {
   const box = $("#pmapAlerts"); if (!box) return;
   const pname = (id) => state.points.find(p => p.id === id)?.display_name || `point ${id}`;
   const where = (n) => { const a = AHUS.find(x => n.startsWith(x.fec + "."));
-    return a ? `${a.name} (${a.where}) room` : n.startsWith("FEC-9.") ? "Sound Room (FCU-1)" : n.startsWith("FEC-10.") ? "Vestibule (cabinet heaters)" : n; };
+    return a ? `${a.name} (${a.where}) room` : n.startsWith("FEC-9.") ? "Sound Room" : n.startsWith("FEC-10.") ? "Vestibule (cabinet heaters)" : n; };
   const dur = (m) => m >= 60 && m % 60 === 0 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} minutes`;
   const deg = (n) => /-T$|-SP$/.test(n) ? " °F" : "";
   const when = (r) => { const n = pname(r.point_id), w = where(n);
