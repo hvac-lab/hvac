@@ -1190,7 +1190,8 @@ function ahuSvg(a) {
   const SY = 290, RY = 135, EY = 70;   // supply duct, return duct and exhaust run centre lines (the title and state line sit above the exhaust run)
   let s = "";
   // --- title and the unit's state line
-  s += label(20, 24, `${a.name}`, "start", 17, ink, 700) + label(20 + a.name.length * 11 + 6, 24, a.where, "start", 12, ink2);
+  // the room names beside the title in the title's own font, 17 bold (Russ, 2026-11-13; were 12 grey)
+  s += label(20, 24, `${a.name}`, "start", 17, ink, 700) + label(20 + a.name.length * 11 + 8, 24, a.where, "start", 17, ink, 700);
   const occ = txt("EFF-OCC"), st = txt("AHU-STATE"), unit = txt("UNITEN-MODE"), wc = txt("WC-C"), econ = has("ECON-AVAILABLE") ? (on("ECON-AVAILABLE") ? "economizer available" : "economizer off (outdoor air too cold or too moist)") : "";
   const stateColor = /unreliable/i.test(st) ? bad : ink2;
   s += label(20, 42, `${st}${occ !== "–" ? " · " + occ.toLowerCase() : ""}${unit === "Shutdown" ? " · UNIT SHUT DOWN" : ""}${wc && wc !== "Normal" && wc !== "–" ? " · " + wc.toLowerCase() : ""}`, "start", 11, unit === "Shutdown" ? bad : stateColor, 600);
