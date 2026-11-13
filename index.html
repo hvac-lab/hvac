@@ -210,7 +210,7 @@
   @media (min-width: 601px) and (max-width: 1200px) { nav.tabs button { padding: 8px 9px; }
     nav.tabs { overflow-x: auto; scrollbar-width: none; } nav.tabs::-webkit-scrollbar { display: none; } }   /* tablets: one sideways-scrolling row like phones */
   ol.notes { margin: 0; padding-left: 26px; } ol.notes li { margin: 10px 0; } ol.notes li::marker { font-weight: 700; color: var(--ink-2); }
-  ol.notes li .hint { margin-top: 3px; line-height: 1.45; }
+  ol.notes li .hint { margin-top: 3px; line-height: 1.5; color: var(--ink-2); font-size: 14px; }   /* not the pale muted grey: hard to read on the dark background (Russ, 2026-11-13) */
   code.topic { font-size: 13px; padding: 1px 6px; border-radius: 6px; background: var(--hover); border: 1px solid var(--border); overflow-wrap: anywhere; }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
