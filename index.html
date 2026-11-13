@@ -985,12 +985,13 @@ function renderBoilerRoom() {
   screen(el("div", { class: "card", style: "padding:6px" }, el("div", { id: "boilerRoom", class: "broom" }, "Loading…")));
   refreshBoilerRoom();
 }
-// When Boiler-2 last ran (Russ, 2026-11-13): its fire rate (AV-408, one of the 28 history points) above 0. First the
+// When Boiler-2 and the pumps CP-1 / CP-2 last ran (Russ, 2026-11-13): Boiler-2's fire rate (AV-408) or a pump's status
+// (CPn-S; both in supabase.historyPoints, 30 points since the pumps were added) above 0. First the
 // newest 15-minute summary with a maximum above 0 (400 days kept), then the last firing minute in the 30 minutes from its
 // start (the quarter hour now running has no summary yet; minutes are kept 7 days; asking the minute table without a time window timed out when nothing matched), else "not
 // since" the oldest summary kept. Asked again every 5 minutes at most.
-async function loadLastRun(b) {
-  const id = state.byName.get(b.fire)?.id; if (id == null) return null;
+async function loadLastRun(name) {
+  const id = state.byName.get(name)?.id; if (id == null) return null;
   if (demo) return { since: new Date(Date.now() - 8 * 864e5).toISOString() };
   const one = async (table, col, asc, gt0, from, to) => { let q = state.sb.from(table).select("ts").eq("point_id", id); if (gt0) q = q.gt(col, 0);
     if (from) q = q.gte("ts", from).lt("ts", to);
@@ -1000,11 +1001,19 @@ async function loadLastRun(b) {
     return m ? { at: m } : { at: q, approx: true }; }
   return { since: await one("hvac_rollup_15m", "vmax", true, false) };
 }
+function lastRunText(name) {
+  const lr = state.lastRun && state.lastRun.v && state.lastRun.v[name];
+  const fmt = ts => new Date(ts).toLocaleString("en-US", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return !lr ? "last ran: –" : lr.at ? `last ran ${lr.approx ? "≈" : ""}${fmt(lr.at)}` : lr.since ? `not run since ${new Date(lr.since).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}` : "last ran: –";
+}
 async function refreshBoilerRoom() {
   clearTimeout(state.timer);
   const box = $("#boilerRoom"); if (!box) return;
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus();
-    if (!state.lastRun || Date.now() - state.lastRun.t > 5 * 60000) state.lastRun = { t: Date.now(), v: await loadLastRun(BOILERS[1]).catch(() => null) };
+    if (!state.lastRun || Date.now() - state.lastRun.t > 5 * 60000) {
+      const names = [BOILERS[1].fire, ...BR.pumps.map(p => p.s)];
+      const got = await Promise.all(names.map(n => loadLastRun(n).catch(() => null)));
+      state.lastRun = { t: Date.now(), v: Object.fromEntries(names.map((n, i) => [n, got[i]])) }; }
     box.innerHTML = boilerRoomSvg(); }
   catch (e) { box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
   state.timer = setTimeout(refreshBoilerRoom, 60000);
@@ -1055,10 +1064,7 @@ function boilerRoomSvg() {
     if (st.fire > 0) s += label(x + 50, 312, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700); else s += label(x + 50, 312, "not firing", "middle", 10);
     if (i === 0) s += label(x + 50, 324, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
     // Boiler-2: when it last ran, at the bottom of its box (Russ, 2026-11-13; loadLastRun)
-    if (i === 1 && !(st.fire > 0)) { const lr = state.lastRun && state.lastRun.v;
-      const fmt = ts => new Date(ts).toLocaleString("en-US", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
-      const t = !lr ? "last ran: –" : lr.at ? `last ran ${lr.approx ? "≈" : ""}${fmt(lr.at)}` : lr.since ? `not run since ${new Date(lr.since).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}` : "last ran: –";
-      s += label(x + 50, 324, t, "middle", 8, ink2, 600); }
+    if (i === 1 && !(st.fire > 0)) s += label(x + 50, 324, lastRunText(bb.b.fire), "middle", 8, ink2, 600);
     // pressure relief valve (piped down to 12" above the floor) and the condensate line through its acid neutralizer, as drawn
     s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + `<path d="M 128 250 V 300" transform="translate(${x},0)" stroke="${ink2}" stroke-width="1"/>` + label(x + 104, 240, "relief valve", "start", 7);
     s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 346, "condensate via", "start", 7) + label(x + 128, 354, "acid neutralizer", "start", 7);
@@ -1111,6 +1117,7 @@ function boilerRoomSvg() {
     if (alarm) s += label(lx, 424, "VFD ALARM", anchor, 10, bad, 700); else if (locked) s += label(lx, 424, "LOCKOUT", anchor, 10, bad, 700);
     else if (mismatch) s += label(lx, 424, cmd ? "commanded on, not running" : "running, not commanded", anchor, 9, bad, 700);
     else if (hours) s += label(lx, 424, hours, anchor, 8);
+    if (!run && has(pp.s)) s += label(lx, 437, lastRunText(pp.s), anchor, 8, ink2, 600);   // when it last ran (Russ, 2026-11-13)
     s += label(x - out * 13, 399, "triple-duty valve", out < 0 ? "start" : "end", 7);
   });
   // --- boiler supply water sensor and out to the system; the loop pressure sensor lives upstairs (M3.2) but belongs to the same supply
@@ -1396,8 +1403,16 @@ function loopSvg() {
     s += label(550, y - 5, above, "start", 8, k.ink2, 600) + label(550, y + 11, below, "start", 7.5, open ? k.good : k.muted, open ? 700 : 400);
   });
   s += label(RX - 17, 92, `${calling} of ${LOOP.length} loads calling for heat`, "end", 9, k.ink2, 600);
-  s += label(500, bottom + 44, "after sheet M3.1 details 1 and 4, M3.2 and M5.1 details 5, 6, 7 and 13 (WSN, 2013); manifold N = floor zone N and the ΔP location are inferred; live values from the logger", "middle", 8);
-  return `<svg viewBox="0 0 1000 ${bottom + 54}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
+  // key to the valve symbols (Russ, 2026-11-13: "what are the icons with the triangles?")
+  const ky = bottom + 30;
+  s += label(90, ky + 3, "KEY", "start", 8.5, k.ink2, 700);
+  s += valve(132, ky, "zone", false) + label(144, ky + 3, "zone valve, open or shut (floor manifolds)", "start", 8);
+  s += valve(340, ky, "2-way", false) + label(352, ky + 3, "2-way control valve", "start", 8);
+  s += valve(460, ky, "3-way", false) + label(472, ky + 3, "3-way control valve (water the coil skips goes back)", "start", 8);
+  s += valve(124, ky + 26, "2-way", true) + label(144, ky + 29, "red = open, calling for heat", "start", 8);
+  s += arrow(350, ky + 26, "r", k.red) + label(362, ky + 29, "water flow (red supply, blue return)", "start", 8);
+  s += label(500, bottom + 74, "after sheet M3.1 details 1 and 4, M3.2 and M5.1 details 5, 6, 7 and 13 (WSN, 2013); manifold N = floor zone N and the ΔP location are inferred; live values from the logger", "middle", 8);
+  return `<svg viewBox="0 0 1000 ${bottom + 84}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" style="width:100%;height:auto;display:block">${s}</svg>`;
 }
 
 // ------------------------------------------------------------------ Heating loop diagram tab (Russ, 2026-11-06 evening; PARKED the same evening: "Remove the Heating Loop Diagram" - not in TABS, add ["loopmap", "Heating loop diagram"] back to show it)
@@ -1741,7 +1756,7 @@ async function adminCall(fn, args) {
 // (Russ, 2026-11-13). KEEP IT CURRENT: when an interval, a website / service, a limit or a step changes (poller,
 // cloud push, alerts, commands, page hosting), change it here too and move PMAP_UPDATED. Drawn as SVG in a fixed
 // frame; coordinates are by hand and an arrow ends at the edge of the box it points to.
-const PMAP_UPDATED = "2026-11-13";   // also: cloud history for 28 points only (supabase.historyPoints)
+const PMAP_UPDATED = "2026-11-13";   // also: cloud history for 30 points only (supabase.historyPoints; the pumps' status joined the 28)
 function processMapParts() {
   const K = { gear: "var(--muted)", jci: "var(--s2)", pc: "var(--s1)", web: "var(--s3)", people: "var(--s7)", hand: "var(--s4)" };
   const S = (tag, attrs = {}, ...kids) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -1831,12 +1846,12 @@ function processMapParts() {
     el("section", { class: "card" }, el("h2", {}, "Changing a temperature from this website"), el("div", { class: "pmx-wrap" }, change), swipe(),
       el("p", { class: "hint", style: "margin:6px 0 0" }, "Priority 8 is the same “operator override” the Metasys screen makes. A setpoint does not start a unit the schedule has off; “Run now” does that the same way, with the temporary-occupancy switch.")),
     el("section", { class: "card" }, el("h2", {}, "How often"), rows([
-      ["Every minute", "The PC reads 331 points from Metasys, saves them, checks the alert rules, sends the current value of all 331 to Supabase (and the history of 28 of them, below) and picks up temperature requests. The web page refreshes."],
+      ["Every minute", "The PC reads 331 points from Metasys, saves them, checks the alert rules, sends the current value of all 331 to Supabase (and the history of 30 of them, below) and picks up temperature requests. The web page refreshes."],
       ["Every 5 minutes", "The PC picks up changed alert rules from the page."],
       ["Every 15 minutes", "15-minute summaries are made for the charts; Windows restarts the poller if it ever stopped."],
       ["Every hour", "The PC reads the Metasys schedules and looks for schedule changes for the Audit tab."],
       ["Every day", "3:10 AM local clean-up, 3:15 AM point names re-read, 3:20 AM cloud clean-up."],
-      ["How long it is kept", "On the PC: all 331 points, 90 days of minute values, summaries forever. In the cloud: the current value of every point, and history only for the 28 points worth charting (room, discharge and outdoor temperatures, setpoints, floor slabs, boilers): 7 days of minute values, 400 days of 15-minute, hourly forever. That keeps the free 500 MB database small (2026-11-13)."]])),
+      ["How long it is kept", "On the PC: all 331 points, 90 days of minute values, summaries forever. In the cloud: the current value of every point, and history only for the 30 points worth charting (room, discharge and outdoor temperatures, setpoints, floor slabs, boilers, pumps on/off): 7 days of minute values, 400 days of 15-minute, hourly forever. That keeps the free 500 MB database small (2026-11-13)."]])),
     // with the account behind each one (Russ, 2026-11-13); never a password or key here
     el("section", { class: "card" }, el("h2", {}, "Websites and services"), el("table", { class: "pmx-list three" },
       el("thead", {}, el("tr", {}, el("th", {}, "Service"), el("th", {}, "What it does"), el("th", {}, "Account"))),
