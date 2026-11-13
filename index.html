@@ -1685,9 +1685,9 @@ async function refreshAudit() {
 // change it through the hvac_admin_add_user / hvac_admin_remove_user functions (supabase\008_admin.sql), which
 // check the admin flag again on the server, so the page itself guards nothing that matters.
 async function loadUsers() {
-  if (demo) { if (!state.users.length) state.users = [{ email: "russ.koehl@morrisnorth.org", note: "Russ", is_admin: true, added_at: "2026-11-05T15:00:00Z", added_by: null },
-    { email: "someone@example.org", note: "Trustee", is_admin: false, added_at: "2026-11-05T21:10:00Z", added_by: "russ.koehl@morrisnorth.org" }]; return state.users; }
-  const { data, error } = await state.sb.from("hvac_allowed_users").select("email,note,is_admin,added_at,added_by").order("added_at");
+  if (demo) { if (!state.users.length) state.users = [{ email: "russ.koehl@morrisnorth.org", note: "Russ", is_admin: true, gets_alerts: true, added_at: "2026-11-05T15:00:00Z", added_by: null },
+    { email: "someone@example.org", note: "Trustee", is_admin: false, gets_alerts: false, added_at: "2026-11-05T21:10:00Z", added_by: "russ.koehl@morrisnorth.org" }]; return state.users; }
+  const { data, error } = await state.sb.from("hvac_allowed_users").select("email,note,is_admin,gets_alerts,added_at,added_by").order("added_at");
   if (error) throw new Error("hvac_allowed_users: " + error.message);
   state.users = data || []; return state.users;
 }
@@ -1695,7 +1695,8 @@ async function adminCall(fn, args) {
   if (demo) {
     const e = String(args.p_email || "").trim().toLowerCase();
     if (fn === "hvac_admin_add_user") { const row = state.users.find(u => u.email === e);
-      if (row) { row.note = args.p_note || row.note; row.is_admin = !!args.p_admin; } else state.users.push({ email: e, note: args.p_note || null, is_admin: !!args.p_admin, added_at: new Date().toISOString(), added_by: "demo" }); }
+      if (row) { row.note = args.p_note || row.note; row.is_admin = !!args.p_admin; if (args.p_alerts != null) row.gets_alerts = !!args.p_alerts; }
+      else state.users.push({ email: e, note: args.p_note || null, is_admin: !!args.p_admin, gets_alerts: !!args.p_alerts, added_at: new Date().toISOString(), added_by: "demo" }); }
     else { if (e === "russ.koehl@morrisnorth.org") throw new Error("You cannot remove yourself"); state.users = state.users.filter(u => u.email !== e); }
     return;
   }
@@ -1751,7 +1752,7 @@ function processMapParts() {
     arrow([[250, 250], [250, 367], [600, 367]]), arrow([[560, 367], [560, 312], [600, 312]]),
     box(600, 290, 150, 45, "web", ["ntfy push", "to phones"]), box(600, 345, 150, 45, "web", ["Gmail email", "warning + critical"]),
     arrow([[750, 312], [800, 312]]), arrow([[750, 367], [800, 367]]),
-    box(800, 290, 150, 100, "people", ["Alerts reach", "Russ's phone", "and email"]));
+    box(800, 290, 150, 100, "people", ["Alerts reach phones", "and, by email,", "the Alerts role"]));
 
   // 2. a temperature change from the Adjust tab
   const change = svg(360, "How a temperature change on the web page reaches the Johnson controller",
@@ -1811,7 +1812,7 @@ function processMapParts() {
         ["GoDaddy", "The morrisnorth.org name and its DNS records (hvac, stream).", "Russ's GoDaddy account"],
         ["Supabase", "The cloud database (free plan) and the page's sign-in.", "Sign in with GitHub as hvac-lab; organization “hvac-lab's Org”, project “hvac-lab's Project”"],
         ["Google sign-in", "The “Sign in with Google” button (Google Cloud app “Morris North HVAC”). Who may look in is the Admin tab's list.", "Set up by Russ in Google Cloud; support email russ.koehl@morrisnorth.org (which Google account holds it is not recorded)"],
-        ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to russ.koehl@morrisnorth.org"],
+        ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to everyone with the Alerts role (Admin tab)"],
         ["ntfy.sh", "Push messages to phones for alerts, also Supabase's “poller silent”.", "No account: a private topic name (on the PC encrypted, and in Supabase), the same one the stream automation uses; phones subscribe to it in the ntfy app"],
         ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens have their own login"],
       ].map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b), el("td", {}, c)))))),
@@ -1857,7 +1858,7 @@ function drawPmapAlerts() {
     el("table", { class: "pmx-list three alerts" },
       el("thead", {}, el("tr", {}, el("th", {}, "Alert"), el("th", {}, "When it goes off"), el("th", {}, "Level"))),
       el("tbody", {}, ...rows.map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b), el("td", {}, c))))),
-    el("p", { class: "hint", style: "margin:6px 0 0" }, "Each alert sends a phone push (ntfy) when it starts, again every 24 hours while it lasts, and when it clears; warning and critical alerts also go by email to russ.koehl@morrisnorth.org. The PC checks the rules after every read and picks up changed rules every 5 minutes; they are listed under Details › Alert rules."));
+    el("p", { class: "hint", style: "margin:6px 0 0" }, "Each alert sends a phone push (ntfy) when it starts, again every 24 hours while it lasts, and when it clears; warning and critical alerts also go by email to everyone with the Alerts role in the list above. The PC checks the rules after every read and picks up changed rules every 5 minutes; they are listed under Details › Alert rules."));
 }
 
 function renderAdmin() {
@@ -1872,15 +1873,17 @@ async function refreshAdmin(note) {
     const [rows] = await Promise.all([loadUsers(), loadStatus()]);
     renderStatus();
     box.replaceChildren();
-    const t = el("table", { class: "admin" }, el("thead", {}, el("tr", {}, el("th", {}, "Email"), el("th", {}, "Name / note"), el("th", { class: "ctr" }, "Admin"), el("th", {}, "Added"), el("th", { class: "by" }, "By"), el("th", {}, ""))));
+    const t = el("table", { class: "admin" }, el("thead", {}, el("tr", {}, el("th", {}, "Email"), el("th", {}, "Name / note"), el("th", { class: "ctr" }, "Admin"), el("th", { class: "ctr", title: "Gets the alert emails" }, "Alerts"), el("th", {}, "Added"), el("th", { class: "by" }, "By"), el("th", {}, ""))));
     const b = el("tbody");
     for (const u of rows) {
       const self = u.email.toLowerCase() === me;
       const rm = el("button", { class: "small danger", title: self ? "You cannot remove yourself" : "Remove " + u.email }, "Remove");
       if (self) rm.disabled = true;
-      const edit = el("button", { class: "small", title: "Change the name or the admin flag" }, "Edit");
+      const edit = el("button", { class: "small", title: "Change the name, the admin flag or the Alerts role" }, "Edit");
       const noteCell = el("td", {}, u.note || "");
       const admCell = el("td", { class: "ctr", "data-sort": u.is_admin ? 1 : 0 }, u.is_admin ? el("span", { class: "badge ok" }, "admin") : "");
+      // Alerts role (Russ, 2026-11-13): the poller emails warning and critical alerts to everyone with it
+      const alrCell = el("td", { class: "ctr", "data-sort": u.gets_alerts ? 1 : 0 }, u.gets_alerts ? el("span", { class: "badge warning" }, "alerts") : "");
       const cell = el("td", { class: "act" }, edit, " ", rm);
       const restore = () => cell.replaceChildren(edit, " ", rm);
       // two clicks to remove: the button turns into "Really remove?" with a Cancel beside it (no pop-up dialogs)
@@ -1895,16 +1898,17 @@ async function refreshAdmin(note) {
       edit.onclick = () => {
         const nameIn = el("input", { type: "text", value: u.note || "", placeholder: "name", style: "width:140px;max-width:100%;padding:4px 6px" });
         const admIn = el("input", { type: "checkbox", title: self ? "You cannot take admin away from yourself" : "" }); admIn.checked = !!u.is_admin; if (self) admIn.disabled = true;
+        const alrIn = el("input", { type: "checkbox" }); alrIn.checked = !!u.gets_alerts;
         const save = el("button", { class: "small primary", style: "padding:3px 10px", onclick: async () => { save.disabled = true;
-          try { await adminCall("hvac_admin_add_user", { p_email: u.email, p_note: nameIn.value.trim() || null, p_admin: admIn.checked }); refreshAdmin(`${u.email} updated.`); }
+          try { await adminCall("hvac_admin_add_user", { p_email: u.email, p_note: nameIn.value.trim() || null, p_admin: admIn.checked, p_alerts: alrIn.checked }); refreshAdmin(`${u.email} updated.`); }
           catch (e) { refreshAdmin("Could not save: " + (e.message || e)); } } }, "Save");
         const cancel = el("button", { class: "small", onclick: () => refreshAdmin() }, "Cancel");
         nameIn.addEventListener("keydown", (e) => { if (e.key === "Enter") save.click(); if (e.key === "Escape") cancel.click(); });
-        noteCell.replaceChildren(nameIn); admCell.replaceChildren(el("label", {}, admIn, " admin"));
+        noteCell.replaceChildren(nameIn); admCell.replaceChildren(el("label", {}, admIn, " admin")); alrCell.replaceChildren(el("label", {}, alrIn, " alerts"));
         cell.replaceChildren(save, " ", cancel);
         nameIn.focus();
       };
-      b.append(el("tr", {}, el("td", { class: "email" }, u.email, self ? el("span", { class: "hint" }, " (you)") : null), noteCell, admCell,
+      b.append(el("tr", {}, el("td", { class: "email" }, u.email, self ? el("span", { class: "hint" }, " (you)") : null), noteCell, admCell, alrCell,
         el("td", { "data-sort": u.added_at || "" }, u.added_at ? when(u.added_at) : ""), el("td", { class: "email by" }, u.added_by || ""), cell));
     }
     t.append(b); box.append(el("div", { class: "tablewrap" }, t)); sortable(t, "admin");
@@ -1912,18 +1916,20 @@ async function refreshAdmin(note) {
     const email = el("input", { type: "text", placeholder: "email address", autocomplete: "off", style: "width:260px;max-width:100%" });
     const name = el("input", { type: "text", placeholder: "name (optional)", autocomplete: "off", style: "width:160px;max-width:100%" });
     const adm = el("input", { type: "checkbox" });
+    const alr = el("input", { type: "checkbox" });
     const msg = el("span", { class: "hint" }, note || "");
     const add = el("button", { class: "primary", onclick: async () => {
       const addr = email.value.trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { msg.textContent = "That does not look like an email address."; return; }
       add.disabled = true; msg.textContent = "Adding…";
-      try { await adminCall("hvac_admin_add_user", { p_email: addr, p_note: name.value.trim() || null, p_admin: adm.checked }); refreshAdmin(`${addr} added.`); }
+      try { await adminCall("hvac_admin_add_user", { p_email: addr, p_note: name.value.trim() || null, p_admin: adm.checked, p_alerts: alr.checked }); refreshAdmin(`${addr} added.`); }
       catch (e) { add.disabled = false; msg.textContent = "Could not add: " + (e.message || e); }
     } }, "Add");
     email.addEventListener("keydown", (e) => { if (e.key === "Enter") add.click(); });
-    box.append(el("div", { class: "adminAdd" }, email, name, el("label", { class: "chk" }, adm, " admin"), add, msg),
+    box.append(el("div", { class: "adminAdd" }, email, name, el("label", { class: "chk" }, adm, " admin"), el("label", { class: "chk" }, alr, " alerts"), add, msg),
       el("p", { class: "hint", style: "margin:8px 0 0" }, "Use the address of the person's Google account. An admin can add and remove people and, with Edit, ",
-        "change a name or give or take the admin flag (not their own). Adding an address that is already listed updates it the same way."));
+        "change a name or give or take the admin flag (not their own). Adding an address that is already listed updates it the same way. ",
+        "Alerts: the church PC emails every warning and critical alert to everyone ticked here (it picks up a change within 5 minutes)."));
   } catch (e) { box.replaceChildren(el("b", {}, "Could not load the list: "), String(e.message || e)); }
 }
 
