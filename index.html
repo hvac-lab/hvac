@@ -1931,7 +1931,7 @@ async function refreshAdmin(note) {
     const [rows] = await Promise.all([loadUsers(), loadStatus()]);
     renderStatus();
     box.replaceChildren();
-    const t = el("table", { class: "admin" }, el("thead", {}, el("tr", {}, el("th", {}, "Email"), el("th", {}, "Name / note"), el("th", { class: "ctr" }, "Admin"), el("th", { class: "ctr", title: "Gets the alert emails" }, "Alerts"), el("th", {}, "Added"), el("th", { class: "by" }, "By"), el("th", {}, ""))));
+    const t = el("table", { class: "admin" }, el("thead", {}, el("tr", {}, el("th", {}, "Email"), el("th", {}, "Name / note"), el("th", { class: "ctr" }, "Admin"), el("th", { class: "ctr", title: "Gets the alert emails" }, "Email Alerts"), el("th", {}, "Added"), el("th", { class: "by" }, "By"), el("th", {}, ""))));
     const b = el("tbody");
     for (const u of rows) {
       const self = u.email.toLowerCase() === me;
