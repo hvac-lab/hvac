@@ -1198,7 +1198,11 @@ function ahuSvg(a) {
   if (alert) s += `<rect x="440" y="10" width="545" height="20" rx="10" fill="${bad}"/>` + label(712, 24, "ALERT: " + (alert.message || "").slice(0, 85), "middle", 9.5, "#fff", 700);
   // --- the rooms (right): zone temperature, setpoint, humidity, building pressure
   s += `<rect x="868" y="70" width="118" height="245" rx="10" fill="${surface}" stroke="${css(SERIES[i])}" stroke-width="2.5"/>`;
-  s += label(927, 90, "THE ROOMS", "middle", 10, ink2, 700) + label(927, 102, a.where, "middle", 7.5);
+  // the rooms' own names in the heading's place and font (was "THE ROOMS" over them in small print; Russ, 2026-11-13);
+  // up to 16 capitals a line, so a long name ("Fellowship Area, Main Entry") wraps to two lines inside the box
+  const roomLines = a.where.toUpperCase().split(" ").reduce((ls, w) => { const last = ls[ls.length - 1];
+    if (last && (last + " " + w).length <= 16) ls[ls.length - 1] = last + " " + w; else ls.push(w); return ls; }, []);
+  s += roomLines.map((l, j) => label(927, (roomLines.length > 1 ? 86 : 92) + j * 12, l, "middle", 10, ink2, 700)).join("");
   s += label(927, 150, num("ZN-T", 1), "middle", 26, ink, 700) + label(927, 164, "°F zone (ZN-T)", "middle", 9);
   s += label(927, 186, `setpoint ${num("ZNT-SP", 1, " °F")}`, "middle", 10, ink2, 600) + (has("EFFHTG-SP") ? label(927, 198, `heat below ${num("EFFHTG-SP", 0)} · cool above ${num("EFFCLG-SP", 0)}`, "middle", 7.5) : "");
   s += label(927, 220, `${num("RA-H", 0, "%")} humidity`, "middle", 12, ink2, 600) + label(927, 231, "of the return air", "middle", 7.5);
