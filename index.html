@@ -206,6 +206,11 @@
     table.pmx-list.three.alerts td:last-child::before { content: "Level: "; } }
   h3.pmx-title { font-size: 18px; margin: 26px 0 12px; }
   ol.pushSteps { margin: 0 0 4px; padding-left: 20px; } ol.pushSteps li { margin: 4px 0; }
+  /* 12 tabs since Notes (2026-11-13): a little less padding on mid-size screens so Admin is not cut off; phones keep their scrolling row */
+  @media (min-width: 601px) and (max-width: 1200px) { nav.tabs button { padding: 8px 9px; }
+    nav.tabs { overflow-x: auto; scrollbar-width: none; } nav.tabs::-webkit-scrollbar { display: none; } }   /* tablets: one sideways-scrolling row like phones */
+  ol.notes { margin: 0; padding-left: 26px; } ol.notes li { margin: 10px 0; } ol.notes li::marker { font-weight: 700; color: var(--ink-2); }
+  ol.notes li .hint { margin-top: 3px; line-height: 1.45; }
   code.topic { font-size: 13px; padding: 1px 6px; border-radius: 6px; background: var(--hover); border: 1px solid var(--border); overflow-wrap: anywhere; }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
@@ -311,7 +316,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
+const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["notes", "Notes"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins; Notes (2026-11-13) for everyone
 // The Process Map is not a tab: it sits under the user list on the Admin tab (Russ, 2026-11-13).
 // The "Heating loop diagram" tab (key "loopmap", code kept below the ladder) is parked: Russ, 2026-11-06 evening, "Remove the Heating Loop Diagram".
 // Friendlier words for some of the engine's state texts
@@ -576,8 +581,52 @@ function renderTab() {
   else if (state.tab === "fans") renderFans();
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
+  else if (state.tab === "notes") renderNotes();
   else if (state.tab === "admin") renderAdmin();
   else renderTemperature();
+}
+
+// ------------------------------------------------------------------ Notes tab
+// What the first week of logging showed (Russ, 2026-11-13: "Add a tab called Notes and put the 1-13 items in there").
+// Found by Claude from the PC's minute history (Nov 5-13, 2026, 18-66 °F outdoors, heating only) and the engine's own
+// trend logs (back to Jun 12, 2026). Plain text kept here: edit NOTES and NOTES_DATE to update it.
+const NOTES_DATE = "2026-11-13";
+const NOTES = [
+  ["Likely problems (worth a service call)", [
+    ["Hot-water recirculation pump RCP-1 does not run",
+     "Metasys commanded it on for 20 hours in 8 days and it never showed running; its own trend log has no “on” since Jun 12, 2026. RCP-2, the same kind of pump, follows every command. Either the pump has failed or is switched off at its breaker, or its running signal is broken. If it is really off, hot water is slow to reach the faucets on water heater WH-1."],
+    ["Vestibule cabinet heater fans (CUH-1 / CUH-2) never run",
+     "Their hot-water valves were open 74 % of the time, but neither fan ever showed running (none since Jun 12, 2026 in the trend log). The vestibule dropped to 61.4 °F. Without the fan the heater gives very little heat. Either the fans have failed or their running signal is not wired."],
+    ["Boiler-1 short-cycles",
+     "350 starts in 8 days (about 44 a day); 195 burns lasted a minute or less and 222 lasted 5 minutes or less. Its own counter rose 715 against 106 hours of running. All those starts wear the igniter and controls and waste gas."],
+    ["Probable cause of the short-cycling: the water comes back almost as hot as it went out",
+     "Supply minus return averages only 2.5 °F while CP-2 runs at about 94 % speed (a heating loop normally drops 10-20 °F). Most of the water goes around the 3-way valves instead of through the coils, so nearly-hot water returns to Boiler-1, it reaches its setpoint within a minute and shuts off. Supply water was also more than 5 °F under its setpoint 20 % of the time. Ask the contractor to look at the 5 psi pump pressure setpoint and the boiler on/off settings together."]]],
+  ["Settings out of step with how the building is used", [
+    ["Friday is now on every air handler's weekly schedule",
+     "On Nov 6 Friday was added to all three schedules in Metasys. AHU-3 (Worship) now runs every Friday 4:00 AM-9:20 PM, AHU-1 11:25 AM-9:35 PM and AHU-2 11:35 AM-10:15 PM. If that was for one event it now repeats every week. Leftover 5-minute entries too: AHU-2 Tuesday 7:00-7:05 AM and Friday 12:00-12:05 AM, AHU-1 Sunday 12:05-12:09 AM."],
+    ["The vestibule is heated to 70 °F around the clock",
+     "Its schedule never switches to unoccupied, so its 60 °F night setting is never used."],
+    ["The building is under negative pressure while the fans run",
+     "The target is +0.05 in. w.c. (a slight push outward). It was negative 95 % of the fan time for AHU-2 (Kitchen and Dining), 73 % for AHU-1 and 56 % for AHU-3. The outdoor-air dampers never opened past their 3 % minimum. Cold air leaks in at the doors (adding to the cold vestibule), and 3 % fresh air is low for a full building: have the balancer check it."],
+    ["Pump CP-1 is only a standby, and Boiler-2 rarely fires",
+     "Pump rotation is off (CP-ROT 0) and the stage-up setting is 105 %, which a pump can never reach, so CP-2 does all the running (54,514 h against 27,454 h). The trend log shows CP-1 only in 18-minute runs on Jun 13, Jul 22, Sep 27 and Oct 18, 2026. Boiler-2 last fired Nov 3, 2026; its inlet and header sensors read fixed values (250 / 246), so nothing is connected to them. Ask for a Boiler-2 test fire before the first deep cold."],
+    ["Rooms sit about 1 °F below their setpoints",
+     "Occupied averages were 68.6, 68.9 and 69.3 °F against 70 °F. That is by design: heating holds the room at the setpoint minus 1.5 °F. If people say it feels cool, raise the setpoint by 1 °F."]]],
+  ["Keep an eye on / maintenance", [
+    ["The sound room gets warm",
+     "It averages about 75 °F at mid-morning and reached 80.7 °F on Nov 13 at 10:08 AM, hard on the streaming equipment. Its fan-coil (FCU-1) only reports a room temperature to Metasys, no setpoint or on/off, so we cannot tell whether it is working."],
+    ["Air filters",
+     "Pressure across them is steady at 0.29-0.32 in. w.c., which is fine. Nothing records when they were last changed; once their rated change-out value is known an alert can watch for it."],
+    ["Dry air",
+     "AHU-1's return air dropped to 24 % humidity. Normal for winter, but worth knowing for the piano and organ."],
+    ["Floor zone 6 (Entry)",
+     "Its valve never opened and its sensor reads in coarse steps (only 8 different values all week). The floor stayed at 70-72 °F anyway, so it is probably fine; have it checked at the next visit."]]]];
+function renderNotes() {
+  let n = 0;
+  screen(...NOTES.map(([title, items]) => el("section", { class: "card" }, el("h2", {}, title),
+      el("ol", { class: "notes", start: String(n + 1) }, ...items.map(([t, d]) => { n++; return el("li", {}, el("b", {}, t), el("div", { class: "hint" }, d)); })))),
+    el("p", { class: "hint", style: "margin:8px 4px" }, `Written ${NOTES_DATE} from the logged history (Nov 5-13, 2026, heating only) and the Metasys trend logs. ` +
+      "Good news the same week: no alarms, no failed reading in 11,393 polls, the air-handler and exhaust fans always did what they were told, and CP-2 held its pressure setpoint within ±0.08 psi."));
 }
 
 // ------------------------------------------------------------------ Temperature tab
