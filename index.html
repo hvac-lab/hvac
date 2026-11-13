@@ -1816,7 +1816,7 @@ function processMapParts() {
         ["Google sign-in", "The “Sign in with Google” button (Google Cloud app “Morris North HVAC”). Who may look in is the Admin tab's list.", "Set up by Russ in Google Cloud; support email russ.koehl@morrisnorth.org (which Google account holds it is not recorded)"],
         ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to everyone with the Alerts role (Admin tab)"],
         ["ntfy.sh", "Push messages to phones for alerts, also Supabase's “poller silent”.", "No account: a private HVAC topic name (on the PC encrypted, and in Supabase; since 2026-11-13 not the stream automation's); phones subscribe to it in the ntfy app, see Phone alerts above"],
-        ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens have their own login"],
+        ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens use the accounts morris and morris2"],
       // the email addresses in the Account column in bold (Russ, 2026-11-13)
       ].map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b),
         el("td", {}, ...c.split(/([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/).map((part, i) => i % 2 ? el("b", {}, part) : part))))))),
