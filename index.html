@@ -1753,7 +1753,15 @@ function renderProcessMap() {
     arrow([[165, 75], [200, 75]]),
     box(200, 40, 150, 70, "web", ["Request saved in", "Supabase (only", "admins may)"]),
     arrow([[350, 75], [385, 75]]),
-    box(385, 40, 150, 70, "pc", ["Church PC", "picks it up", "within a minute"]),
+    box(385, 40, 150, 70, "pc", ["Church PC asks", "for new requests", "every minute"]),
+    // what "within a minute" means: the poller's once-a-minute cycle (Russ asked for the detail, 2026-11-13)
+    arrow([[460, 110], [460, 134]], true),
+    S("g", {}, S("rect", { class: "pmx-box", x: 200, y: 134, width: 335, height: 136, rx: 9, style: `stroke:${K.pc}; stroke-dasharray: 5 4` }),
+      S("text", { class: "pmx-t", x: 214, y: 156, style: "text-anchor: start" },
+        ...[["Every minute, on the minute, the PC:", 700], ["1. reads the 331 points from Metasys", 400], ["2. saves them and checks the alert rules", 400],
+            ["3. asks Supabase: any pending requests?", 700], ["4. sends the new readings to Supabase", 400],
+            ["A request waits up to a minute, about 30 s", 400], ["on average. The PC calls out; nothing reaches in.", 400]]
+          .map(([l, w], i) => S("tspan", { x: 214, dy: i ? 16.5 : 0, "font-weight": w }, l)))),
     arrow([[535, 75], [560, 75]]),
     diamond(620, 75, 60, 48, ["Allowed?", "65–75 °F"]),
     arrow([[620, 123], [620, 190]]), label(628, 160, "No", "start"),
@@ -1768,7 +1776,7 @@ function renderProcessMap() {
     box(910, 290, 175, 55, "web", ["Audit tab:", "who and when"]),
     box(15, 290, 200, 55, "hand", ["Time limit ends, or", "“Back to schedule now”"]),
     arrow([[215, 317], [250, 317]]),
-    box(250, 290, 170, 55, "pc", ["PC releases", "priority 8"]),
+    box(250, 290, 170, 55, "pc", ["PC releases priority 8", "(its own timer)"]),
     arrow([[420, 317], [455, 317]]),
     box(455, 290, 200, 55, "jci", ["The schedule’s setpoint", "takes over again"]));
 
