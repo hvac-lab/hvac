@@ -1884,6 +1884,7 @@ async function drawPushBox() {
       msg.textContent = "Sent. Every phone subscribed to the topic should show it within a few seconds.";
     } catch (e) { msg.textContent = "Could not send: " + (e.message || e); }
     test.disabled = false; } }, "Send a test to phones");
+  test.title = "Goes to every phone subscribed to the topic (a push cannot be sent to one phone only)";   // kept for that reason (Russ, 2026-11-13)
   const link = (href, text) => el("a", { href, target: "_blank", rel: "noopener", style: "color: var(--s1)" }, text);
   box.replaceChildren(el("h2", {}, "Phone alerts"),
     el("ol", { class: "pushSteps" },
@@ -1903,6 +1904,26 @@ function renderAdmin() {
   drawPushBox();
   loadExtras().then(drawPmapAlerts).catch(() => { const b = $("#pmapAlerts"); if (b) b.replaceChildren(el("h2", {}, "Which alerts are watched"), el("p", { class: "hint" }, "Could not load the alert rules.")); });
 }
+// The page files the request (hvac_request_test_alert, supabase\013_test_alert.sql); the poller sends the email and
+// marks the row done or failed, which this watches for up to 3 minutes. The note line under the list says how it went.
+async function testEmail(email, btn) {
+  const say = (t) => { const m = $("#adminList .adminAdd .hint"); if (m) m.textContent = t; };
+  btn.disabled = true; say(`Test email for ${email}: asked the church PC, it sends within a minute…`);
+  try {
+    let id;
+    if (demo) id = 0;
+    else { const { data, error } = await state.sb.rpc("hvac_request_test_alert", { p_email: email }); if (error) throw new Error(error.message); id = data; }
+    for (let i = 0; i < 18; i++) {
+      await new Promise(r => setTimeout(r, demo ? 300 : 10000));
+      if (demo) { say(`Test email sent to ${email}. Ask them to check their inbox (and spam folder).`); btn.disabled = false; return; }
+      const { data } = await state.sb.from("hvac_test_requests").select("status,result").eq("id", id).single();
+      if (data && data.status === "done") { say(`Test email sent to ${email}. Ask them to check their inbox (and spam folder).`); btn.disabled = false; return; }
+      if (data && data.status === "failed") { say(`Test email to ${email} failed: ${data.result || "unknown reason"}`); btn.disabled = false; return; }
+    }
+    say(`Test email for ${email} is still waiting: the church PC may be off or offline.`);
+  } catch (e) { say(`Could not ask for a test email: ${e.message || e}`); }
+  btn.disabled = false;
+}
 async function refreshAdmin(note) {
   const box = $("#adminList"); if (!box) return;
   const me = String(state.user?.email || "").toLowerCase();
@@ -1921,8 +1942,10 @@ async function refreshAdmin(note) {
       const admCell = el("td", { class: "ctr", "data-sort": u.is_admin ? 1 : 0 }, u.is_admin ? el("span", { class: "badge ok" }, "admin") : "");
       // Alerts role (Russ, 2026-11-13): the poller emails warning and critical alerts to everyone with it
       const alrCell = el("td", { class: "ctr", "data-sort": u.gets_alerts ? 1 : 0 }, u.gets_alerts ? el("span", { class: "badge warning" }, "alerts") : "");
-      const cell = el("td", { class: "act" }, edit, " ", rm);
-      const restore = () => cell.replaceChildren(edit, " ", rm);
+      // Test: a test alert email to this one person, sent by the church PC within a minute (Russ, 2026-11-13: per person)
+      const test = el("button", { class: "small", title: "Send a test alert email to " + u.email + " only", onclick: () => testEmail(u.email, test) }, "Test email");
+      const cell = el("td", { class: "act" }, edit, " ", test, " ", rm);
+      const restore = () => cell.replaceChildren(edit, " ", test, " ", rm);
       // two clicks to remove: the button turns into "Really remove?" with a Cancel beside it (no pop-up dialogs)
       rm.onclick = () => {
         const yes = el("button", { class: "small danger", onclick: async () => { yes.disabled = true;
@@ -1966,7 +1989,8 @@ async function refreshAdmin(note) {
     box.append(el("div", { class: "adminAdd" }, email, name, el("label", { class: "chk" }, adm, " admin"), el("label", { class: "chk" }, alr, " alerts"), add, msg),
       el("p", { class: "hint", style: "margin:8px 0 0" }, "Use the address of the person's Google account. An admin can add and remove people and, with Edit, ",
         "change a name or give or take the admin flag (not their own). Adding an address that is already listed updates it the same way. ",
-        "Alerts: the church PC emails every warning and critical alert to everyone ticked here (it picks up a change within 5 minutes)."));
+        "Alerts: the church PC emails every warning and critical alert to everyone ticked here (it picks up a change within 5 minutes). ",
+        "Test email sends a test alert email to that one person."));
   } catch (e) { box.replaceChildren(el("b", {}, "Could not load the list: "), String(e.message || e)); }
 }
 
