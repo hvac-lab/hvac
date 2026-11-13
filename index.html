@@ -205,6 +205,8 @@
     table.pmx-list.three td:last-child::before { content: "Account: "; font-weight: 600; }
     table.pmx-list.three.alerts td:last-child::before { content: "Level: "; } }
   h3.pmx-title { font-size: 18px; margin: 26px 0 12px; }
+  ol.pushSteps { margin: 0 0 4px; padding-left: 20px; } ol.pushSteps li { margin: 4px 0; }
+  code.topic { font-size: 13px; padding: 1px 6px; border-radius: 6px; background: var(--hover); border: 1px solid var(--border); overflow-wrap: anywhere; }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
     /* Phone header and tabs take as little height as possible (Russ, 2026-11-06 evening: the tabs took half the screen
@@ -1813,7 +1815,7 @@ function processMapParts() {
         ["Supabase", "The cloud database (free plan) and the page's sign-in.", "Sign in with GitHub as hvac-lab; organization “hvac-lab's Org”, project “hvac-lab's Project”"],
         ["Google sign-in", "The “Sign in with Google” button (Google Cloud app “Morris North HVAC”). Who may look in is the Admin tab's list.", "Set up by Russ in Google Cloud; support email russ.koehl@morrisnorth.org (which Google account holds it is not recorded)"],
         ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to everyone with the Alerts role (Admin tab)"],
-        ["ntfy.sh", "Push messages to phones for alerts, also Supabase's “poller silent”.", "No account: a private topic name (on the PC encrypted, and in Supabase), the same one the stream automation uses; phones subscribe to it in the ntfy app"],
+        ["ntfy.sh", "Push messages to phones for alerts, also Supabase's “poller silent”.", "No account: a private HVAC topic name (on the PC encrypted, and in Supabase; since 2026-11-13 not the stream automation's); phones subscribe to it in the ntfy app, see Phone alerts above"],
         ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens have their own login"],
       ].map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b), el("td", {}, c)))))),
     // Russ, 2026-11-13: document how the PC reaches out, where the code is and how to change it, and GoDaddy
@@ -1858,12 +1860,45 @@ function drawPmapAlerts() {
     el("table", { class: "pmx-list three alerts" },
       el("thead", {}, el("tr", {}, el("th", {}, "Alert"), el("th", {}, "When it goes off"), el("th", {}, "Level"))),
       el("tbody", {}, ...rows.map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b), el("td", {}, c))))),
-    el("p", { class: "hint", style: "margin:6px 0 0" }, "Each alert sends a phone push (ntfy) when it starts, again every 24 hours while it lasts, and when it clears; warning and critical alerts also go by email to everyone with the Alerts role in the list above. The PC checks the rules after every read and picks up changed rules every 5 minutes; they are listed under Details › Alert rules."));
+    el("p", { class: "hint", style: "margin:6px 0 0" }, "Each alert sends a phone push (ntfy, to every phone subscribed under Phone alerts above) when it starts, again every 24 hours while it lasts, and when it clears; warning and critical alerts also go by email to everyone with the Alerts role in the list above. The PC checks the rules after every read and picks up changed rules every 5 minutes; they are listed under Details › Alert rules."));
+}
+
+// Phone alerts (Russ, 2026-11-13): HVAC alerts have their own private ntfy topic (supabase\012_hvac_ntfy_topic.sql);
+// admins read it through hvac_alert_topic() to subscribe a phone, and can send a test push from here.
+async function drawPushBox() {
+  const box = $("#pushBox"); if (!box) return;
+  let topic;
+  try {
+    if (demo) topic = "mn-hvac-demo-topic";
+    else { const { data, error } = await state.sb.rpc("hvac_alert_topic"); if (error) throw new Error(error.message); topic = data; }
+  } catch (e) { box.replaceChildren(el("h2", {}, "Phone alerts"), el("p", { class: "hint" }, "Could not load the alert topic: " + (e.message || e))); return; }
+  if (!topic) { box.replaceChildren(el("h2", {}, "Phone alerts"), el("p", { class: "hint" }, "No alert topic has been set up yet.")); return; }
+  const msg = el("span", { class: "hint" });
+  const copy = el("button", { class: "small", onclick: async () => { try { await navigator.clipboard.writeText(topic); msg.textContent = "Copied."; } catch { msg.textContent = "Select the name and copy it."; } } }, "Copy");
+  const test = el("button", { class: "small", onclick: async () => { test.disabled = true; msg.textContent = "Sending…";
+    try {
+      if (!demo) { const r = await fetch("https://ntfy.sh/" + encodeURIComponent(topic), { method: "POST", body: `Test from the HVAC page, sent by ${state.user?.email || "an admin"}. Phone alerts work.`,
+        headers: { Title: "HVAC: test alert", Tags: "white_check_mark" } }); if (!r.ok) throw new Error("ntfy answered " + r.status); }
+      msg.textContent = "Sent. Every phone subscribed to the topic should show it within a few seconds.";
+    } catch (e) { msg.textContent = "Could not send: " + (e.message || e); }
+    test.disabled = false; } }, "Send a test to phones");
+  const link = (href, text) => el("a", { href, target: "_blank", rel: "noopener", style: "color: var(--s1)" }, text);
+  box.replaceChildren(el("h2", {}, "Phone alerts"),
+    el("ol", { class: "pushSteps" },
+      el("li", {}, "Install the free ", el("b", {}, "ntfy"), " app: ", link("https://apps.apple.com/app/ntfy/id1625396347", "iPhone"), " · ",
+        link("https://play.google.com/store/apps/details?id=io.heckel.ntfy", "Android"), "."),
+      el("li", {}, "In the app tap ", el("b", {}, "+"), " (subscribe to a topic) and enter this name, server ntfy.sh: ", el("code", { class: "topic" }, topic), " ", copy),
+      el("li", {}, "On a computer: open ", link("https://ntfy.sh/" + encodeURIComponent(topic), "ntfy.sh/" + topic), " and allow notifications.")),
+    el("div", { class: "adminAdd" }, test, msg),
+    el("p", { class: "hint", style: "margin:8px 0 0" }, "Every alert goes to every phone subscribed to this topic (emails go to the Alerts role above). ",
+      "Share the name only with people who should get the alerts: anyone who has it can read them. It is not the Sunday stream topic."));
 }
 
 function renderAdmin() {
-  screen(el("div", { class: "card", id: "adminList" }, "Loading…"), ...processMapParts());   // the Process Map under the users (Russ, 2026-11-13)
+  screen(el("div", { class: "card", id: "adminList" }, "Loading…"), el("section", { class: "card", id: "pushBox" }, el("h2", {}, "Phone alerts"), el("p", { class: "hint" }, "Loading…")),
+    ...processMapParts());   // the Process Map under the users (Russ, 2026-11-13)
   refreshAdmin();
+  drawPushBox();
   loadExtras().then(drawPmapAlerts).catch(() => { const b = $("#pmapAlerts"); if (b) b.replaceChildren(el("h2", {}, "Which alerts are watched"), el("p", { class: "hint" }, "Could not load the alert rules.")); });
 }
 async function refreshAdmin(note) {
