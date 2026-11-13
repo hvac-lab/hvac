@@ -604,25 +604,14 @@ function renderTab() {
 // maintenance log with this checklist" - "Yes, build it"; anyone signed in may log). The checklist is MAINT below (key, name, what to do,
 // every how many months); each "done" is a row in hvac_maintenance (supabase\017_maintenance.sql), except the air filters, which are the
 // hvac_filter_changes rows of the Air handlers tab (016). Status per task: never logged / ok / due within 30 days / overdue.
+// Russ, 2026-11-13: the items Ellingson (Alexandria, MN) does in their normal annual service review are not listed one by one;
+// they are one task, "Annual service review", whose text says what to make sure the visit covers.
 const MAINT = [
-  ["Boiler room", [
-    { key: "boiler-service", name: "Boiler annual service", months: 12, what: "Combustion test, igniter and flame sensor check (Boiler-1 starts about 44 times a day), clean the heat exchanger and condensate trap, test the low-water cutoff and relief valves. Contractor." },
-    { key: "boiler2-test", name: "Boiler-2 test fire", months: 12, what: "Fire Boiler-2 before the first cold snap; it rarely runs (last Nov 3, 2026)." },
-    { key: "neutralizer", name: "Condensate neutralizer", months: 12, what: "The limestone / marble chips the boiler condensate runs through before the floor drain: check them, replace when about half gone (every 1-2 years), pH of the outflow above 6." },
-    { key: "glycol", name: "Heating-loop glycol test", months: 12, what: "Freeze protection and corrosion inhibitor; top up the glycol feeder tank." },
-    { key: "strainers", name: "Pump strainers (CP-1 / CP-2)", months: 12, what: "Clean the suction diffuser screens; a clogged one makes CP-2 work harder (it runs at 92-100 %)." },
-    { key: "exp-tank", name: "Expansion tank", months: 12, what: "Check the air charge pressure." },
-    { key: "air-separator", name: "Air separator blow-down", months: 6, what: "Open the blow-down valve briefly to flush out dirt." },
-    { key: "bypass-filter", name: "Bypass filter bag", months: 6, what: "The filter on the chemical feeder side loop near AHU-1: change the bag when dirty." },
-    { key: "pumps", name: "Pumps and drives", months: 12, what: "Clean the VFD cooling fans; run CP-1 for a while so it does not seize." }]],
+  ["Annual service (contractor)", [
+    { key: "annual-service", name: "Annual service review - Ellingson (Alexandria, MN)", months: 12, what: "Log the visit here. Make sure it covers: both boilers (combustion test, igniter and flame sensor - Boiler-1 starts about 44 times a day - heat exchanger, condensate trap, low-water cutoff and relief valves) and a Boiler-2 test fire; the condensate neutralizer media (the chips the boiler condensate drains through); heating-loop glycol test; pump strainers, VFDs and a CP-1 run; expansion tank charge; air separator blow-down and the bypass filter bag; air handler belts, bearings, coils, drain pans, dampers and freeze-stat test; outdoor cooling units." }]],
   ["Air handlers", [
     ...AHUS.map(a => ({ key: "filters-" + a.key.toLowerCase(), ahu: a.key, name: `Air filters ${a.key} (${a.where})`, months: 3, what: "Every 3 months, or when the pressure drop reaches about 0.5 in. Also logged from the Air handlers tab." })),
-    { key: "ahu-belts", name: "Fan belts and bearings", months: 12, what: "Check belts, grease bearings, all three air handlers." },
-    { key: "ahu-coils", name: "Coils and drain pans", months: 12, what: "Clean the coils; clean the cooling drain pans in spring." },
-    { key: "low-limit", name: "Freeze protection test (LT-A)", months: 12, what: "Test the low-temperature cutout on each air handler before winter." },
-    { key: "smoke-detectors", name: "Duct smoke detectors", months: 12, what: "Supply and return detector on each air handler; fire-code testing, usually by the fire alarm company." },
-    { key: "dampers", name: "Dampers", months: 12, what: "Outdoor, return and exhaust dampers move freely." },
-    { key: "condensers", name: "Outdoor cooling units", months: 12, what: "Clean the condenser coils before summer." }]],
+    { key: "smoke-detectors", name: "Duct smoke detectors", months: 12, what: "Supply and return detector on each air handler; fire-code testing, usually by the fire alarm company." }]],
   ["Plumbing", [
     { key: "water-heaters", name: "Water heaters WH-1 / WH-2", months: 12, what: "Flush the sediment, check the anode rod and the mixing valve TMV-1 (and why RCP-1 does not run, Notes item 1)." }]],
   ["Controls", [
@@ -631,7 +620,7 @@ const MAINT = [
 async function loadMaint() {
   const filt = await loadFilterChanges();
   let rows;
-  if (demo) { if (!state.maintDemo) state.maintDemo = [{ id: 1, task: "neutralizer", done_on: "2025-10-20", done_by: "Demo Contractor", note: "media half gone, refilled", logged_by: "demo@example.org" }]; rows = state.maintDemo.slice(); }
+  if (demo) { if (!state.maintDemo) state.maintDemo = [{ id: 1, task: "annual-service", done_on: "2025-10-20", done_by: "Demo Contractor", note: "neutralizer media refilled", logged_by: "demo@example.org" }]; rows = state.maintDemo.slice(); }
   else { const { data, error } = await state.sb.from("hvac_maintenance").select("*").order("done_on", { ascending: false }).order("id", { ascending: false }).limit(1000); if (error) throw new Error(error.message); rows = data || []; }
   const byTask = {};
   for (const r of rows) (byTask[r.task] = byTask[r.task] || []).push({ ...r, src: "maint" });
