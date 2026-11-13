@@ -37,8 +37,10 @@
   .pill { display:inline-flex; align-items:center; gap:6px; padding: 3px 10px; border-radius: 999px; font-size: 13px; border: 1px solid var(--border); color: var(--ink-2); }
   .pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
   .pill.ok .dot { background: var(--good); } .pill.warn .dot { background: var(--warning); } .pill.bad .dot { background: var(--critical); }
-  nav.tabs { display:flex; gap: 4px; padding: 8px 16px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
-  nav.tabs button { border: 1px solid transparent; border-bottom: none; background: none; border-radius: 10px 10px 0 0; padding: 8px 16px; font-size: 15px; color: var(--ink-2); }
+  nav.tabs { display:flex; gap: 4px; padding: 8px 16px 0; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
+  /* twelve tabs for admins: a narrow window scrolls the tab row (thin scrollbar for a mouse), never the page (2026-11-13) */
+  nav.tabs button { border: 1px solid transparent; border-bottom: none; background: none; border-radius: 10px 10px 0 0; padding: 8px 16px; font-size: 15px; color: var(--ink-2); white-space: nowrap; flex: 0 0 auto; }
+  @media (max-width: 1340px) { nav.tabs button { padding: 8px 11px; } }
   nav.tabs button.on { background: var(--page); border-color: var(--border); color: var(--ink); font-weight: 650; margin-bottom: -1px; }
   button, select, input[type=search], input[type=number], input[type=text] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
   input[type=number] { width: 90px; padding: 6px 8px; } input[type=text] { padding: 6px 8px; }
@@ -183,6 +185,19 @@
   .sched .seg { position: absolute; top: 0; bottom: 0; border-radius: 6px; opacity: .9; }
   .sched .now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--critical); }
   .sched .times { grid-column: 3; font-size: 12px; color: var(--ink-2); }
+  /* Process Map tab (admins): flowcharts drawn as SVG by renderProcessMap(); a phone swipes the drawing, not the page */
+  .pmx-wrap { overflow-x: auto; } .pmx-wrap svg { display:block; width: 100%; min-width: 860px; height: auto; }
+  .pmx-band { fill: var(--hover); } .pmx-bl { font-size: 11px; font-weight: 650; letter-spacing: .06em; fill: var(--muted); }
+  .pmx-box { fill: var(--surface); stroke-width: 2; } .pmx-dec { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.5; }
+  .pmx-t { font-size: 12.5px; font-weight: 550; fill: var(--ink); text-anchor: middle; }
+  .pmx-a { fill: none; stroke: var(--muted); stroke-width: 1.6; } .pmx-a.dash { stroke-dasharray: 5 4; } .pmx-head { fill: var(--muted); }
+  .pmx-l { font-size: 11px; font-weight: 650; fill: var(--ink-2); }
+  .pmx-legend { display:flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin: 0 0 10px; }
+  .pmx-legend i { display:inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .pmx-swipe { display: none; }
+  table.pmx-list { width: 100%; border-collapse: collapse; font-size: 14px; } table.pmx-list td { padding: 6px 8px; border-top: 1px solid var(--grid); vertical-align: top; }
+  table.pmx-list tr:first-child td { border-top: none; } table.pmx-list td:first-child { font-weight: 600; white-space: nowrap; width: 1%; }
+  @media (max-width: 760px) { .pmx-swipe { display: block; } }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
     /* Phone header and tabs take as little height as possible (Russ, 2026-11-06 evening: the tabs took half the screen
@@ -287,7 +302,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins
+const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["pmap", "Process Map"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins; Process Map admins only (2026-11-13)
 // The "Heating loop diagram" tab (key "loopmap", code kept below the ladder) is parked: Russ, 2026-11-06 evening, "Remove the Heating Loop Diagram".
 // Friendlier words for some of the engine's state texts
 const STATE_WORDS = { "Satisfied": "Not heating or cooling" };
@@ -531,7 +546,7 @@ function renderStatus() {
 // ------------------------------------------------------------------ tabs
 function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
-  const adminOnly = ["admin", "adjust"];   // Adjust changes the building, so admins only (Russ, 2026-11-07)
+  const adminOnly = ["admin", "adjust", "pmap"];   // Adjust changes the building, so admins only (Russ, 2026-11-07); Process Map too (2026-11-13)
   if ((adminOnly.includes(state.tab) && !state.admin) || !TABS.some(t => t[0] === state.tab)) state.tab = "temp";
   for (const [key, label] of TABS) if (!adminOnly.includes(key) || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
   const on = nav.querySelector("button.on"); if (on && nav.scrollWidth > nav.clientWidth) on.scrollIntoView({ block: "nearest", inline: "center" });   // phone: one scrolling row
@@ -552,6 +567,7 @@ function renderTab() {
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
   else if (state.tab === "admin") renderAdmin();
+  else if (state.tab === "pmap") renderProcessMap();
   else renderTemperature();
 }
 
@@ -1679,6 +1695,105 @@ async function adminCall(fn, args) {
   const { error } = await state.sb.rpc(fn, args);
   if (error) throw new Error(error.message);
 }
+// ------------------------------------------------------------------ Process Map tab (admins)
+// How the data gets to the cloud and how a temperature change reaches the Johnson system, for showing others
+// (Russ, 2026-11-13). KEEP IT CURRENT: when an interval, a website / service, a limit or a step changes (poller,
+// cloud push, alerts, commands, page hosting), change it here too and move PMAP_UPDATED. Drawn as SVG in a fixed
+// frame; coordinates are by hand and an arrow ends at the edge of the box it points to.
+const PMAP_UPDATED = "2026-11-13";
+function renderProcessMap() {
+  const K = { gear: "var(--muted)", jci: "var(--s2)", pc: "var(--s1)", web: "var(--s3)", people: "var(--s7)", hand: "var(--s4)" };
+  const S = (tag, attrs = {}, ...kids) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) n.setAttribute(k, v);
+    for (const k of kids) if (k !== null && k !== undefined) n.append(k instanceof Node ? k : document.createTextNode(String(k))); return n; };
+  const text = (cx, cy, lines) => S("text", { class: "pmx-t", x: cx, y: cy - (lines.length - 1) * 7.5 + 4.5 },
+    ...lines.map((l, i) => S("tspan", { x: cx, dy: i ? 15 : 0 }, l)));
+  const box = (x, y, w, h, k, lines) => S("g", {}, S("rect", { class: "pmx-box", x, y, width: w, height: h, rx: 9, style: `stroke:${K[k]}` }), text(x + w / 2, y + h / 2, lines));
+  const diamond = (cx, cy, hw, hh, lines) => S("g", {}, S("polygon", { class: "pmx-dec", points: `${cx},${cy - hh} ${cx + hw},${cy} ${cx},${cy + hh} ${cx - hw},${cy}` }), text(cx, cy, lines));
+  const arrow = (pts, dashed) => S("path", { class: "pmx-a" + (dashed ? " dash" : ""), d: "M" + pts.map(p => p.join(" ")).join(" L"), "marker-end": "url(#pmx-arrow)" });
+  const label = (x, y, s, anchor = "middle") => S("text", { class: "pmx-l", x, y, "text-anchor": anchor }, s);
+  let marker = true;   // the arrowhead is defined once, in the first drawing; the second one uses it too
+  const svg = (h, title, ...kids) => S("svg", { viewBox: `0 0 1100 ${h}`, role: "img", "aria-label": title },
+    !marker ? null : (marker = false, S("defs", {}, S("marker", { id: "pmx-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" },
+      S("path", { class: "pmx-head", d: "M0 0 L10 5 L0 10 z" })))), ...kids);
+  const legend = el("div", { class: "pmx-legend" }, ...[["gear", "Building equipment"], ["jci", "Johnson Controls (Metasys)"], ["pc", "Church PC, automatic"],
+    ["web", "Cloud and websites"], ["people", "People"], ["hand", "A person, only if needed"]].map(([k, t]) => el("span", {}, el("i", { style: `background:${K[k]}` }), t)));
+  const swipe = () => el("p", { class: "hint pmx-swipe", style: "margin:6px 0 0" }, "Swipe sideways to see the whole map.");
+
+  // 1. data to the cloud: the church on the left, the internet on the right
+  const data = svg(400, "How the HVAC data gets from the building to the web page",
+    S("rect", { class: "pmx-band", x: 0, y: 0, width: 540, height: 400, rx: 12 }), S("rect", { class: "pmx-band", x: 550, y: 0, width: 550, height: 400, rx: 12 }),
+    S("text", { class: "pmx-bl", x: 14, y: 24 }, "IN THE CHURCH"), S("text", { class: "pmx-bl", x: 1086, y: 24, "text-anchor": "end" }, "ON THE INTERNET"),
+    box(15, 60, 135, 70, "gear", ["HVAC equipment", "AHUs, boilers,", "floors, fans"]),
+    arrow([[150, 95], [180, 95]]),
+    box(180, 60, 140, 70, "jci", ["Johnson Metasys", "engine NCE-1"]),
+    arrow([[320, 95], [390, 95]]), label(355, 86, "BACnet"), label(355, 112, "every 60 s"),
+    box(390, 60, 130, 70, "pc", ["Church PC", "poller program", "(read only)"]),
+    arrow([[455, 130], [455, 190]]), label(463, 165, "saves", "start"),
+    box(390, 190, 130, 60, "pc", ["Local history", "90 days + summaries"]),
+    arrow([[390, 118], [360, 118], [360, 220], [320, 220]]),
+    box(180, 190, 140, 60, "pc", ["Alert check", "after every read"]),
+    arrow([[520, 95], [600, 95]]), label(560, 86, "HTTPS"), label(560, 112, "every minute"),
+    box(600, 60, 150, 70, "web", ["Supabase", "cloud database"]),
+    arrow([[750, 95], [800, 95]]),
+    box(800, 60, 150, 70, "web", ["hvac.morrisnorth.org", "web page"]),
+    arrow([[950, 95], [985, 95]]),
+    box(985, 60, 105, 70, "people", ["Phones and", "computers"]),
+    box(800, 190, 150, 60, "web", ["Google sign-in", "+ allow list"]), arrow([[875, 190], [875, 130]]), label(883, 165, "who may see it", "start"),
+    arrow([[675, 130], [675, 290]], true), label(683, 215, "PC quiet", "start"), label(683, 229, "10 minutes", "start"),
+    arrow([[250, 250], [250, 367], [600, 367]]), arrow([[560, 367], [560, 312], [600, 312]]),
+    box(600, 290, 150, 45, "web", ["ntfy push", "to phones"]), box(600, 345, 150, 45, "web", ["Gmail email", "warning + critical"]),
+    arrow([[750, 312], [800, 312]]), arrow([[750, 367], [800, 367]]),
+    box(800, 290, 150, 100, "people", ["Alerts reach", "Russ's phone", "and email"]));
+
+  // 2. a temperature change from the Adjust tab
+  const change = svg(360, "How a temperature change on the web page reaches the Johnson controller",
+    S("rect", { class: "pmx-band", x: 0, y: 0, width: 1100, height: 360, rx: 12 }),
+    box(15, 40, 150, 70, "people", ["Admin on Adjust:", "− / +, time limit,", "Set"]),
+    arrow([[165, 75], [200, 75]]),
+    box(200, 40, 150, 70, "web", ["Request saved in", "Supabase (only", "admins may)"]),
+    arrow([[350, 75], [385, 75]]),
+    box(385, 40, 150, 70, "pc", ["Church PC", "picks it up", "within a minute"]),
+    arrow([[535, 75], [560, 75]]),
+    diamond(620, 75, 60, 48, ["Allowed?", "65–75 °F"]),
+    arrow([[620, 123], [620, 190]]), label(628, 160, "No", "start"),
+    box(560, 190, 120, 55, "hand", ["Not done:", "page says why"]),
+    arrow([[680, 75], [715, 75]]), label(697, 66, "Yes"),
+    box(715, 40, 160, 70, "jci", ["PC writes it to", "Metasys at", "priority 8"]),
+    arrow([[795, 110], [795, 190]]), label(803, 152, "within seconds", "start"),
+    box(715, 190, 160, 65, "jci", ["Controller uses it:", "the AHU heats", "or cools"]),
+    arrow([[875, 222], [910, 222]]),
+    box(910, 190, 175, 65, "pc", ["Read back after 2 s:", "page says Done"]),
+    arrow([[997, 255], [997, 290]]),
+    box(910, 290, 175, 55, "web", ["Audit tab:", "who and when"]),
+    box(15, 290, 200, 55, "hand", ["Time limit ends, or", "“Back to schedule now”"]),
+    arrow([[215, 317], [250, 317]]),
+    box(250, 290, 170, 55, "pc", ["PC releases", "priority 8"]),
+    arrow([[420, 317], [455, 317]]),
+    box(455, 290, 200, 55, "jci", ["The schedule’s setpoint", "takes over again"]));
+
+  const rows = (list) => el("table", { class: "pmx-list" }, el("tbody", {}, ...list.map(([a, b]) => el("tr", {}, el("td", {}, a), el("td", {}, b)))));
+  screen(
+    el("section", { class: "card" }, el("h2", {}, "How the data gets to the cloud"), legend, el("div", { class: "pmx-wrap" }, data), swipe(),
+      el("p", { class: "hint", style: "margin:6px 0 0" }, "The PC only reads from Metasys here; the one way anything is written is the temperature change below. Dashed: Supabase itself warns when the PC goes quiet.")),
+    el("section", { class: "card" }, el("h2", {}, "Changing a temperature from this website"), el("div", { class: "pmx-wrap" }, change), swipe(),
+      el("p", { class: "hint", style: "margin:6px 0 0" }, "Priority 8 is the same “operator override” the Metasys screen makes. A setpoint does not start a unit the schedule has off; “Run now” does that the same way, with the temporary-occupancy switch.")),
+    el("section", { class: "card" }, el("h2", {}, "How often"), rows([
+      ["Every minute", "The PC reads 331 points from Metasys, saves them, checks the alert rules, sends new values to Supabase and picks up temperature requests. The web page refreshes."],
+      ["Every 5 minutes", "The PC picks up changed alert rules from the page."],
+      ["Every 15 minutes", "15-minute summaries are made for the charts; Windows restarts the poller if it ever stopped."],
+      ["Every hour", "The PC reads the Metasys schedules and looks for schedule changes for the Audit tab."],
+      ["Every day", "3:10 AM local clean-up, 3:15 AM point names re-read, 3:20 AM cloud clean-up."],
+      ["How long it is kept", "On the PC: 90 days of minute values, summaries forever. In the cloud: 7 days of minute values, 400 days of 15-minute, hourly forever."]])),
+    el("section", { class: "card" }, el("h2", {}, "Websites and services"), rows([
+      ["hvac.morrisnorth.org", "This page, hosted free on GitHub Pages (hvac-lab/hvac); the name comes from GoDaddy."],
+      ["Supabase", "The cloud database (free plan) and the sign-in; only people on the Admin tab's list see anything."],
+      ["Google", "Sign-in with a Google account; Gmail sends the alert and sign-in emails."],
+      ["ntfy.sh", "Push messages to phones for alerts."],
+      ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet."]])),
+    el("p", { class: "hint", style: "text-align:center" }, `Map updated ${new Date(PMAP_UPDATED + "T12:00").toLocaleDateString()} · only admins see this tab`));
+}
+
 function renderAdmin() {
   screen(el("div", { class: "card", id: "adminList" }, "Loading…"));
   refreshAdmin();
