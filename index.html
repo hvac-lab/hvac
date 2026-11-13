@@ -730,8 +730,11 @@ const NOTES = [
      "Its schedule never switches to unoccupied, so its 60 °F night setting is never used."],
     ["The building is under negative pressure while the fans run",
      "The target is +0.05 in. w.c. (a slight push outward). It was negative 95 % of the fan time for AHU-2 (Kitchen and Dining), 73 % for AHU-1 and 56 % for AHU-3. The outdoor-air dampers never opened past their 3 % minimum. Cold air leaks in at the doors (adding to the cold vestibule), and 3 % fresh air is low for a full building: have the balancer check it."],
-    ["Pump CP-1 is only a standby, and Boiler-2 rarely fires",
-     "Pump rotation is off (CP-ROT 0) and the stage-up setting is 105 %, which a pump can never reach, so CP-2 does all the running (54,514 h against 27,454 h). The trend log shows CP-1 only in 18-minute runs on Jun 13, Jul 22, Sep 27 and Oct 18, 2026. Boiler-2 last fired Nov 3, 2026; its inlet and header sensors read fixed values (250 / 246), so nothing is connected to them. Ask for a Boiler-2 test fire before the first deep cold."],
+    // two items since 2026-11-13 (Russ: "These are two different items")
+    ["Pump CP-1 is only a standby",
+     "Pump rotation is off (CP-ROT 0) and the stage-up setting is 105 %, which a pump can never reach, so CP-2 does all the running (54,514 h against 27,454 h). The trend log shows CP-1 only in 18-minute runs on Jun 13, Jul 22, Sep 27 and Oct 18, 2026. Turning rotation on (often weekly) would wear the pumps evenly and prove CP-1 still works before it is needed."],
+    ["Boiler-2 rarely fires",
+     "It is the lag boiler and fires only when Boiler-1 cannot keep up: last on Nov 3, 2026, not once since logging began on Nov 5. Its inlet and header sensors read fixed values (250 / 246), so nothing is connected to them. Ask for a Boiler-2 test fire before the first deep cold."],
     ["Rooms sit about 1 °F below their setpoints",
      "Occupied averages were 68.6, 68.9 and 69.3 °F against 70 °F. That is by design: heating holds the room at the setpoint minus 1.5 °F. If people say it feels cool, raise the setpoint by 1 °F."]]],
   ["Keep an eye on / maintenance", [
@@ -764,7 +767,7 @@ const NOTES = [
     ["Air-handler fan speed (contractor / balancer)",
      "The supply fans always run at 100 % (return fans 90 %). If the balancer confirms enough air at 80 %, fan power while running drops by about half."],
     ["How to go about it",
-     "Already good, leave as is: night setback 60 °F heating / 78 °F cooling, the hot-water recirculation pumps on a schedule, fans off overnight. Free ones you can do in Metasys yourself: items 14, 19, 20 and 21; the rest are for the contractor. Make one change at a time and watch this page for a week before the next."]]]];
+     "Already good, leave as is: night setback 60 °F heating / 78 °F cooling, the hot-water recirculation pumps on a schedule, fans off overnight. Free ones you can do in Metasys yourself: items 15, 20, 21 and 22; the rest are for the contractor. Make one change at a time and watch this page for a week before the next."]]]];
 function renderNotes() {
   let n = 0;
   screen(...NOTES.map(([title, items]) => el("section", { class: "card notesSec" }, el("h2", {}, title),
