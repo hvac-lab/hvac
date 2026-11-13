@@ -210,7 +210,9 @@
   @media (min-width: 601px) and (max-width: 1200px) { nav.tabs button { padding: 8px 9px; }
     nav.tabs { overflow-x: auto; scrollbar-width: none; } nav.tabs::-webkit-scrollbar { display: none; } }   /* tablets: one sideways-scrolling row like phones */
   ol.notes { margin: 0; padding-left: 26px; } ol.notes li { margin: 10px 0; } ol.notes li::marker { font-weight: 700; color: var(--ink-2); }
-  ol.notes li .hint { margin-top: 3px; line-height: 1.5; color: var(--ink-2); font-size: 14px; }   /* not the pale muted grey: hard to read on the dark background (Russ, 2026-11-13) */
+  ol.notes li .hint { margin-top: 4px; line-height: 1.55; color: var(--ink); font-size: 15px; }   /* full text colour: the greys were hard to read on the dark background (Russ, 2026-11-13, twice) */
+  ol.notes li > b { font-size: 16px; } main section.card h2 + ol.notes { margin-top: 6px; }
+  p.notesFoot { color: var(--ink-2); font-size: 14px; } section.notesSec > h2 { color: var(--ink-2); }
   code.topic { font-size: 13px; padding: 1px 6px; border-radius: 6px; background: var(--hover); border: 1px solid var(--border); overflow-wrap: anywhere; }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
@@ -645,9 +647,9 @@ const NOTES = [
      "Already good, leave as is: night setback 60 °F heating / 78 °F cooling, the hot-water recirculation pumps on a schedule, fans off overnight. Free ones you can do in Metasys yourself: items 14, 19, 20 and 21; the rest are for the contractor. Make one change at a time and watch this page for a week before the next."]]]];
 function renderNotes() {
   let n = 0;
-  screen(...NOTES.map(([title, items]) => el("section", { class: "card" }, el("h2", {}, title),
+  screen(...NOTES.map(([title, items]) => el("section", { class: "card notesSec" }, el("h2", {}, title),
       el("ol", { class: "notes", start: String(n + 1) }, ...items.map(([t, d]) => { n++; return el("li", {}, el("b", {}, t), el("div", { class: "hint" }, d)); })))),
-    el("p", { class: "hint", style: "margin:8px 4px" }, `Written ${NOTES_DATE} from the logged history (Nov 5-13, 2026, heating only) and the Metasys trend logs. ` +
+    el("p", { class: "hint notesFoot", style: "margin:8px 4px" }, `Written ${NOTES_DATE} from the logged history (Nov 5-13, 2026, heating only) and the Metasys trend logs. ` +
       "Good news the same week: no alarms, no failed reading in 11,393 polls, the air-handler and exhaust fans always did what they were told, and CP-2 held its pressure setpoint within ±0.08 psi."));
 }
 
