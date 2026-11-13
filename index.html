@@ -975,7 +975,8 @@ async function refreshMap() {
 const BR = {   // the hot-water loop points by role (group "Local Application")
   hws: "Local Application.HWS-T", hwr: "Local Application.HWR-T", sp: "Local Application.BLRSP-O", dp: "Local Application.HW-DP", dpsp: "Local Application.HWDP-SP",
   oat: "Local Application.OA-T", en: "Local Application.BLR-EN", sysEn: "Local Application.SYSTEM-EN", rot: "Local Application.CP-ROT",
-  boilers: [{ name: "B-1", s: "Local Application.BLR1-S", a: "Local Application.BLR1-A", b: BOILERS[0] }, { name: "B-2", s: "Local Application.BLR2-S", a: "Local Application.BLR2-A", b: BOILERS[1] }],
+  // shown as Boiler-1 / Boiler-2 like the cards above (were "B-1  BOILER", the plan's tags; Russ, 2026-11-13)
+  boilers: [{ name: "Boiler-1", s: "Local Application.BLR1-S", a: "Local Application.BLR1-A", b: BOILERS[0] }, { name: "Boiler-2", s: "Local Application.BLR2-S", a: "Local Application.BLR2-A", b: BOILERS[1] }],
   pumps: [{ name: "CP-1", s: "Local Application.CP1-S", c: "Local Application.CP1-C", o: "Local Application.CP1-O", a: "Local Application.CP1-A", lo: "Local Application.CP1-LO-A", rt: "Local Application.CP1-RUNTIME" },
           { name: "CP-2", s: "Local Application.CP2-S", c: "Local Application.CP2-C", o: "Local Application.CP2-O", a: "Local Application.CP2-A", lo: "Local Application.CP2-LO-A", rt: "Local Application.CP2-RUNTIME" }],
 };
@@ -1025,7 +1026,7 @@ function boilerRoomSvg() {
     const alarm = on(bb.a); const running = on(bb.s) || st.code === 3;
     const stroke = alarm || st.cls === "err" ? bad : running ? good : grid;
     s += `<rect x="${x}" y="200" width="100" height="130" rx="8" fill="${surface}" stroke="${stroke}" stroke-width="${running || alarm ? 4 : 2}"/>`;
-    s += label(x + 50, 220, bb.name + "  BOILER", "middle", 13, ink, 700) + label(x + 50, 228, bb.b.bst === "lead" ? "lead (BST master)" : "BST slave", "middle", 7);
+    s += label(x + 50, 220, bb.name, "middle", 13, ink, 700) + label(x + 50, 228, bb.b.bst === "lead" ? "lead (BST master)" : "BST slave", "middle", 7);
     const pill = alarm ? "ALARM" : st.label.toUpperCase();
     const pillColor = alarm || st.cls === "err" ? bad : st.cls === "ok" ? good : st.cls === "warn" ? warn : muted;
     s += `<rect x="${x + 5}" y="230" width="90" height="18" rx="9" fill="${pillColor}"/>` + label(x + 50, 243, pill, "middle", pill.length > 10 ? 8.5 : 10, "#fff", 700);
