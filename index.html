@@ -985,10 +985,27 @@ function renderBoilerRoom() {
   screen(el("div", { class: "card", style: "padding:6px" }, el("div", { id: "boilerRoom", class: "broom" }, "Loading…")));
   refreshBoilerRoom();
 }
+// When Boiler-2 last ran (Russ, 2026-11-13): its fire rate (AV-408, one of the 28 history points) above 0. First the
+// newest 15-minute summary with a maximum above 0 (400 days kept), then the last firing minute in the 30 minutes from its
+// start (the quarter hour now running has no summary yet; minutes are kept 7 days; asking the minute table without a time window timed out when nothing matched), else "not
+// since" the oldest summary kept. Asked again every 5 minutes at most.
+async function loadLastRun(b) {
+  const id = state.byName.get(b.fire)?.id; if (id == null) return null;
+  if (demo) return { since: new Date(Date.now() - 8 * 864e5).toISOString() };
+  const one = async (table, col, asc, gt0, from, to) => { let q = state.sb.from(table).select("ts").eq("point_id", id); if (gt0) q = q.gt(col, 0);
+    if (from) q = q.gte("ts", from).lt("ts", to);
+    const { data, error } = await q.order("ts", { ascending: asc }).limit(1); if (error) throw new Error(error.message); return data[0]?.ts || null; };
+  const q = await one("hvac_rollup_15m", "vmax", false, true);
+  if (q) { const m = await one("hvac_samples_1m", "value", false, true, q, new Date(new Date(q).getTime() + 30 * 60000).toISOString()).catch(() => null);
+    return m ? { at: m } : { at: q, approx: true }; }
+  return { since: await one("hvac_rollup_15m", "vmax", true, false) };
+}
 async function refreshBoilerRoom() {
   clearTimeout(state.timer);
   const box = $("#boilerRoom"); if (!box) return;
-  try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus(); box.innerHTML = boilerRoomSvg(); }
+  try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus();
+    if (!state.lastRun || Date.now() - state.lastRun.t > 5 * 60000) state.lastRun = { t: Date.now(), v: await loadLastRun(BOILERS[1]).catch(() => null) };
+    box.innerHTML = boilerRoomSvg(); }
   catch (e) { box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
   state.timer = setTimeout(refreshBoilerRoom, 60000);
 }
@@ -1037,6 +1054,11 @@ function boilerRoomSvg() {
     s += label(x + 50, 286, num(bb.b.supply, 1, " °F"), "middle", 18, ink, 700) + label(x + 50, 298, "outlet", "middle", 9);
     if (st.fire > 0) s += label(x + 50, 312, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700); else s += label(x + 50, 312, "not firing", "middle", 10);
     if (i === 0) s += label(x + 50, 324, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
+    // Boiler-2: when it last ran, at the bottom of its box (Russ, 2026-11-13; loadLastRun)
+    if (i === 1 && !(st.fire > 0)) { const lr = state.lastRun && state.lastRun.v;
+      const fmt = ts => new Date(ts).toLocaleString("en-US", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+      const t = !lr ? "last ran: –" : lr.at ? `last ran ${lr.approx ? "≈" : ""}${fmt(lr.at)}` : lr.since ? `not run since ${new Date(lr.since).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}` : "last ran: –";
+      s += label(x + 50, 324, t, "middle", 8, ink2, 600); }
     // pressure relief valve (piped down to 12" above the floor) and the condensate line through its acid neutralizer, as drawn
     s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + `<path d="M 128 250 V 300" transform="translate(${x},0)" stroke="${ink2}" stroke-width="1"/>` + label(x + 104, 240, "relief valve", "start", 7);
     s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 346, "condensate via", "start", 7) + label(x + 128, 354, "acid neutralizer", "start", 7);
