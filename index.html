@@ -1811,13 +1811,15 @@ function processMapParts() {
       el("thead", {}, el("tr", {}, el("th", {}, "Service"), el("th", {}, "What it does"), el("th", {}, "Account"))),
       el("tbody", {}, ...[
         ["GitHub", "Holds this page and publishes it free at hvac.morrisnorth.org (repository hvac-lab/hvac).", "GitHub account hvac-lab, email hvac@morrisnorth.org (signs in with that Google account)"],
-        ["GoDaddy", "The morrisnorth.org name and its DNS records (hvac, stream).", "Russ's GoDaddy account"],
-        ["Supabase", "The cloud database (free plan) and the page's sign-in.", "Sign in with GitHub as hvac-lab; organization “hvac-lab's Org”, project “hvac-lab's Project”"],
+        ["GoDaddy", "The morrisnorth.org name and its DNS records (hvac, stream).", "GoDaddy account mnorthacc@gmail.com"],
+        ["Supabase", "The cloud database (free plan) and the page's sign-in.", "The GitHub account: “Continue with GitHub” as hvac-lab, hvac@morrisnorth.org; organization “hvac-lab's Org”, project “hvac-lab's Project”"],
         ["Google sign-in", "The “Sign in with Google” button (Google Cloud app “Morris North HVAC”). Who may look in is the Admin tab's list.", "Set up by Russ in Google Cloud; support email russ.koehl@morrisnorth.org (which Google account holds it is not recorded)"],
         ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to everyone with the Alerts role (Admin tab)"],
         ["ntfy.sh", "Push messages to phones for alerts, also Supabase's “poller silent”.", "No account: a private HVAC topic name (on the PC encrypted, and in Supabase; since 2026-11-13 not the stream automation's); phones subscribe to it in the ntfy app, see Phone alerts above"],
         ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens have their own login"],
-      ].map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b), el("td", {}, c)))))),
+      // the email addresses in the Account column in bold (Russ, 2026-11-13)
+      ].map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b),
+        el("td", {}, ...c.split(/([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/).map((part, i) => i % 2 ? el("b", {}, part) : part))))))),
     // Russ, 2026-11-13: document how the PC reaches out, where the code is and how to change it, and GoDaddy
     el("section", { class: "card" }, el("h2", {}, "How the PC connects: it calls out, nothing reaches in"), rows([
       ["Metasys engine", "BACnet over the church network only (UDP 47808, to 192.168.1.10). The PC's one inbound firewall rule lets answers in from that engine alone, and only for the poller program."],
@@ -1834,7 +1836,7 @@ function processMapParts() {
       ["The database", "supabase.com, project \u201chvac-lab's Project\u201d; sign in with GitHub as hvac-lab. Table and function changes are the files in the PC's supabase\\ folder, run in the SQL editor."],
       ["Never on GitHub", "Passwords and keys. They are entered once on the PC with scripts\\Setup-Secrets.ps1 and stored encrypted for that Windows user."]])),
     el("section", { class: "card" }, el("h2", {}, "The web address (GoDaddy)"), rows([
-      ["morrisnorth.org", "Registered at GoDaddy, which also runs its DNS (the name servers are GoDaddy's domaincontrol.com). Russ manages the account; the domain must stay renewed there or both pages stop."],
+      ["morrisnorth.org", "Registered at GoDaddy (account mnorthacc@gmail.com), which also runs its DNS (the name servers are GoDaddy's domaincontrol.com). The domain must stay renewed there or both pages stop."],
       ["hvac.morrisnorth.org", "DNS record CNAME hvac \u2192 hvac-lab.github.io (Russ, 2026-11-05). GitHub repository hvac-lab/hvac \u203a Settings \u203a Pages holds the same name as its custom domain, with Enforce HTTPS on (GitHub makes the certificate)."],
       ["stream.morrisnorth.org", "The stream status page, the same way: CNAME stream \u2192 hvac-lab.github.io (2026-11-09), repository hvac-lab/stream."],
       ["If an address stops working", "Check the CNAME record in GoDaddy (DNS for morrisnorth.org) and the custom domain under the repository's Settings \u203a Pages; GitHub sends its own hvac-lab.github.io addresses on to these names, so the DNS record must be right."]])),
