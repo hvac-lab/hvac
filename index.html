@@ -207,8 +207,14 @@
   h3.pmx-title { font-size: 18px; margin: 26px 0 12px; }
   ol.pushSteps { margin: 0 0 4px; padding-left: 20px; } ol.pushSteps li { margin: 4px 0; }
   /* 12 tabs since Notes (2026-11-13): a little less padding on mid-size screens so Admin is not cut off; phones keep their scrolling row */
-  @media (min-width: 601px) and (max-width: 1200px) { nav.tabs button { padding: 8px 9px; }
+  @media (min-width: 601px) and (max-width: 1300px) { nav.tabs button { padding: 8px 9px; }   /* 1300 since Maintenance (13 tabs) */
     nav.tabs { overflow-x: auto; scrollbar-width: none; } nav.tabs::-webkit-scrollbar { display: none; } }   /* tablets: one sideways-scrolling row like phones */
+  .maintRow { padding: 10px 2px; border-bottom: 1px solid var(--border); } .maintRow:last-child { border-bottom: none; }
+  .maintHead { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; } .maintHead > div:first-child { flex: 1; min-width: 260px; }
+  .maintHead b { font-size: 15px; } .maintEvery { color: var(--ink-2); font-size: 13px; } .maintRow .badge { font-size: 12px; padding: 1px 8px; }
+  .maintWhat { color: var(--ink); font-size: 14px; line-height: 1.5; margin-top: 3px; } .maintLast { color: var(--ink-2); font-size: 14px; margin-top: 3px; }
+  .maintSum { display: flex; gap: 10px 26px; flex-wrap: wrap; align-items: baseline; font-size: 15px; } .maintNum { font-size: 22px; }
+  .maintNum.critical { color: var(--critical); } .maintNum.warning { color: var(--serious); } .maintNum.ok { color: var(--good); }
   .filtBar { padding: 6px 10px 8px; font-size: 14px; border-top: 1px solid var(--border); margin-top: 2px; }
   .filtHead { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
   .filtBtns { display: flex; gap: 6px; } .filtDp { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
@@ -323,7 +329,7 @@ const RANGES = { "24h": { sec: 86400, table: "hvac_samples_1m", label: "24 hours
 const FLAG = { alarm: 1, fault: 2, overridden: 4, oos: 8, unreliable: 16, readError: 32 };
 const CONDITIONS = { below: "below", above: "above", deviation: "differs from point 2 by more than", unreliable: "reports Unreliable", read_error: "cannot be read", equals: "equals", not_equals: "is not" };
 const DURATIONS = [["", "until released"], ["60", "1 hour"], ["120", "2 hours"], ["240", "4 hours"], ["480", "8 hours"], ["720", "12 hours"], ["1440", "24 hours"]];
-const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["notes", "Notes"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins; Notes (2026-11-13) for everyone
+const TABS = [["temp", "Temperature"], ["adjust", "Adjust"], ["map", "Floor plan"], ["ahu", "Air handlers"], ["boiler", "Boiler room"], ["details", "Details"], ["loop", "Heating loop"], ["fans", "Exhaust fans"], ["sched", "Schedule"], ["audit", "Audit"], ["maint", "Maintenance"], ["notes", "Notes"], ["admin", "Admin"]];   // order is Russ's (2026-11-06 evening); Admin only for admins; Maintenance and Notes (2026-11-13) for everyone
 // The Process Map is not a tab: it sits under the user list on the Admin tab (Russ, 2026-11-13).
 // The "Heating loop diagram" tab (key "loopmap", code kept below the ladder) is parked: Russ, 2026-11-06 evening, "Remove the Heating Loop Diagram".
 // Friendlier words for some of the engine's state texts
@@ -589,8 +595,117 @@ function renderTab() {
   else if (state.tab === "sched") renderSchedule();
   else if (state.tab === "audit") renderAudit();
   else if (state.tab === "notes") renderNotes();
+  else if (state.tab === "maint") renderMaintenance();
   else if (state.tab === "admin") renderAdmin();
   else renderTemperature();
+}
+
+// ------------------------------------------------------------------ Maintenance tab (Russ, 2026-11-13: "Turn the filter log into a general
+// maintenance log with this checklist" - "Yes, build it"; anyone signed in may log). The checklist is MAINT below (key, name, what to do,
+// every how many months); each "done" is a row in hvac_maintenance (supabase\017_maintenance.sql), except the air filters, which are the
+// hvac_filter_changes rows of the Air handlers tab (016). Status per task: never logged / ok / due within 30 days / overdue.
+const MAINT = [
+  ["Boiler room", [
+    { key: "boiler-service", name: "Boiler annual service", months: 12, what: "Combustion test, igniter and flame sensor check (Boiler-1 starts about 44 times a day), clean the heat exchanger and condensate trap, test the low-water cutoff and relief valves. Contractor." },
+    { key: "boiler2-test", name: "Boiler-2 test fire", months: 12, what: "Fire Boiler-2 before the first cold snap; it rarely runs (last Nov 3, 2026)." },
+    { key: "neutralizer", name: "Condensate neutralizer", months: 12, what: "The limestone / marble chips the boiler condensate runs through before the floor drain: check them, replace when about half gone (every 1-2 years), pH of the outflow above 6." },
+    { key: "glycol", name: "Heating-loop glycol test", months: 12, what: "Freeze protection and corrosion inhibitor; top up the glycol feeder tank." },
+    { key: "strainers", name: "Pump strainers (CP-1 / CP-2)", months: 12, what: "Clean the suction diffuser screens; a clogged one makes CP-2 work harder (it runs at 92-100 %)." },
+    { key: "exp-tank", name: "Expansion tank", months: 12, what: "Check the air charge pressure." },
+    { key: "air-separator", name: "Air separator blow-down", months: 6, what: "Open the blow-down valve briefly to flush out dirt." },
+    { key: "bypass-filter", name: "Bypass filter bag", months: 6, what: "The filter on the chemical feeder side loop near AHU-1: change the bag when dirty." },
+    { key: "pumps", name: "Pumps and drives", months: 12, what: "Clean the VFD cooling fans; run CP-1 for a while so it does not seize." }]],
+  ["Air handlers", [
+    ...AHUS.map(a => ({ key: "filters-" + a.key.toLowerCase(), ahu: a.key, name: `Air filters ${a.key} (${a.where})`, months: 3, what: "Every 3 months, or when the pressure drop reaches about 0.5 in. Also logged from the Air handlers tab." })),
+    { key: "ahu-belts", name: "Fan belts and bearings", months: 12, what: "Check belts, grease bearings, all three air handlers." },
+    { key: "ahu-coils", name: "Coils and drain pans", months: 12, what: "Clean the coils; clean the cooling drain pans in spring." },
+    { key: "low-limit", name: "Freeze protection test (LT-A)", months: 12, what: "Test the low-temperature cutout on each air handler before winter." },
+    { key: "smoke-detectors", name: "Duct smoke detectors", months: 12, what: "Supply and return detector on each air handler; fire-code testing, usually by the fire alarm company." },
+    { key: "dampers", name: "Dampers", months: 12, what: "Outdoor, return and exhaust dampers move freely." },
+    { key: "condensers", name: "Outdoor cooling units", months: 12, what: "Clean the condenser coils before summer." }]],
+  ["Plumbing", [
+    { key: "water-heaters", name: "Water heaters WH-1 / WH-2", months: 12, what: "Flush the sediment, check the anode rod and the mixing valve TMV-1 (and why RCP-1 does not run, Notes item 1)." }]],
+  ["Controls", [
+    { key: "metasys-backup", name: "Metasys backup and clock", months: 12, what: "Back up the Metasys database; set the engine clock (it ran about 3 minutes fast in Nov 2026)." },
+    { key: "sensor-check", name: "Sensor spot-check", months: 12, what: "Compare a few sensors with a handheld thermometer: outdoor, a room, supply water." }]]];
+async function loadMaint() {
+  const filt = await loadFilterChanges();
+  let rows;
+  if (demo) { if (!state.maintDemo) state.maintDemo = [{ id: 1, task: "neutralizer", done_on: "2025-10-20", done_by: "Demo Contractor", note: "media half gone, refilled", logged_by: "demo@example.org" }]; rows = state.maintDemo.slice(); }
+  else { const { data, error } = await state.sb.from("hvac_maintenance").select("*").order("done_on", { ascending: false }).order("id", { ascending: false }).limit(1000); if (error) throw new Error(error.message); rows = data || []; }
+  const byTask = {};
+  for (const r of rows) (byTask[r.task] = byTask[r.task] || []).push({ ...r, src: "maint" });
+  for (const r of filt) { const k = "filters-" + r.ahu.toLowerCase(); (byTask[k] = byTask[k] || []).push({ ...r, task: k, done_on: r.changed_on, src: "filter" }); }
+  for (const k in byTask) byTask[k].sort((x, y) => y.done_on.localeCompare(x.done_on) || y.id - x.id);
+  return byTask;
+}
+function maintStatus(t, last) {
+  if (!last) return { cls: "warning", text: "never logged" };
+  const due = dayOf(last.done_on); due.setMonth(due.getMonth() + t.months);
+  const days = Math.round((due - new Date().setHours(0, 0, 0, 0)) / 864e5);
+  return days < 0 ? { cls: "critical", text: `overdue since ${fmtDay(isoDay(due))}`, due } : days <= 30 ? { cls: "warning", text: `due ${fmtDay(isoDay(due))}`, due } : { cls: "ok", text: `next ${fmtDay(isoDay(due))}`, due };
+}
+function renderMaintenance() {
+  screen(el("div", { id: "maintTop" }), ...MAINT.map(([g, tasks]) => el("section", { class: "card notesSec" }, el("h2", {}, g), el("div", { class: "maintList" }, ...tasks.map(t => el("div", { class: "maintRow", id: "mt-" + t.key }, "Loading…"))))),
+    el("p", { class: "hint notesFoot", style: "margin:8px 4px" }, "Anyone signed in can log a task as done; your sign-in email is saved with it. Entries can be deleted (✕ in the history) by whoever logged them or an admin. Intervals are typical ones; ask the service contractor and adjust."));
+  refreshMaintenance();
+}
+async function refreshMaintenance() {
+  try { state.maint = await loadMaint(); state.maintErr = null; } catch (e) { state.maintErr = e.message || String(e); state.maint = state.maint || {}; }
+  const all = MAINT.flatMap(([, ts]) => ts), st = all.map(t => maintStatus(t, (state.maint[t.key] || [])[0]));
+  const top = $("#maintTop");
+  if (top) top.replaceChildren(el("div", { class: "card" }, el("div", { class: "maintSum" },
+    state.maintErr ? el("b", { style: "color:var(--critical)" }, "Could not load the log: " + state.maintErr) : "",
+    ...[["critical", "overdue"], ["warning", "due soon or never logged"], ["ok", "up to date"]].map(([c, label]) => el("span", {}, el("b", { class: "maintNum " + c }, String(st.filter(x => x.cls === c).length)), " " + label)))));
+  for (const t of all) drawMaintRow(t);
+}
+function drawMaintRow(t, mode) {
+  const box = $("#mt-" + t.key); if (!box) return;
+  box.dataset.mode = mode || "view";
+  const rows = (state.maint && state.maint[t.key]) || [], last = rows[0], s = maintStatus(t, last);
+  const head = el("div", { class: "maintHead" },
+    el("div", {}, el("div", {}, el("b", {}, t.name), " ", el("span", { class: "badge " + s.cls }, s.text), el("span", { class: "maintEvery" }, ` every ${t.months === 12 ? "year" : t.months + " months"}`)),
+      el("div", { class: "maintWhat" }, t.what),
+      el("div", { class: "maintLast" }, last ? el("span", {}, "Last done ", el("b", {}, fmtDay(last.done_on)), " by ", el("b", {}, last.done_by), last.note ? ` · ${last.note}` : "") : "Not logged yet.")),
+    el("div", { class: "filtBtns" }, el("button", { class: "small", onclick: () => drawMaintRow(t, "form") }, "Log done"),
+      el("button", { class: "small", onclick: () => drawMaintRow(t, mode === "history" ? "view" : "history") }, mode === "history" ? "Hide history" : `History (${rows.length})`)));
+  const kids = [head];
+  if (mode === "form") {
+    const date = el("input", { type: "date", value: isoDay(new Date()), max: isoDay(new Date(Date.now() + 864e5)) });
+    const who = el("input", { type: "text", placeholder: "Who did it", maxlength: "80" });
+    const note = el("input", { type: "text", placeholder: "Note (optional)", maxlength: "500", style: "flex:1;min-width:200px" });
+    const msg = el("span", { class: "hint" });
+    const save = el("button", { class: "small", onclick: async () => {
+      if (!date.value) { msg.textContent = "Pick the date."; return; } if (!who.value.trim()) { msg.textContent = "Who did it?"; who.focus(); return; }
+      save.disabled = true; msg.textContent = "Saving…";
+      const base = { done_by: who.value.trim(), note: note.value.trim() || null };
+      try {
+        if (t.ahu) { const row = { ahu: t.ahu, changed_on: date.value, ...base };
+          if (demo) { await loadFilterChanges(); state.filterDemo.push({ ...row, id: Date.now(), logged_by: state.user?.email || "demo@example.org" }); }
+          else { const { error } = await state.sb.from("hvac_filter_changes").insert(row); if (error) throw new Error(error.message); }
+          state.filterAt = 0; }
+        else { const row = { task: t.key, done_on: date.value, ...base };
+          if (demo) state.maintDemo.push({ ...row, id: Date.now(), logged_by: state.user?.email || "demo@example.org" });
+          else { const { error } = await state.sb.from("hvac_maintenance").insert(row); if (error) throw new Error(error.message); } }
+        await refreshMaintenance();
+      } catch (e) { msg.textContent = "Could not save: " + (e.message || e); save.disabled = false; } } }, "Save");
+    kids.push(el("div", { class: "filtForm" }, el("label", {}, "Done on ", date), who, note, save, el("button", { class: "small", onclick: () => drawMaintRow(t, "view") }, "Cancel"), msg));
+    setTimeout(() => who.focus(), 0);
+  }
+  if (mode === "history") {
+    const me = String(state.user?.email || "").toLowerCase();
+    kids.push(rows.length ? el("table", { class: "filtHist" }, el("thead", {}, el("tr", {}, ...["Done", "By", "Note", "Logged by", ""].map(h => el("th", {}, h)))),
+      el("tbody", {}, ...rows.map(r => el("tr", {}, el("td", {}, fmtDay(r.done_on)), el("td", {}, r.done_by), el("td", {}, r.note || ""), el("td", { class: "hint" }, r.logged_by || ""),
+        el("td", {}, (state.admin || (r.logged_by || "").toLowerCase() === me) ? el("button", { class: "small danger", title: "Delete this entry (a mistake)", onclick: async () => {
+          if (!confirm(`Delete "${t.name}" done ${fmtDay(r.done_on)} by ${r.done_by}?`)) return;
+          try {
+            if (demo) { if (r.src === "filter") state.filterDemo = state.filterDemo.filter(x => x.id !== r.id); else state.maintDemo = state.maintDemo.filter(x => x.id !== r.id); }
+            else { const { error } = await state.sb.from(r.src === "filter" ? "hvac_filter_changes" : "hvac_maintenance").delete().eq("id", r.id); if (error) throw new Error(error.message); }
+            if (r.src === "filter") state.filterAt = 0;
+            await refreshMaintenance(); drawMaintRow(t, "history");
+          } catch (e) { alert("Could not delete: " + (e.message || e)); } } }, "✕") : ""))))) : el("p", { class: "hint" }, "Nothing logged yet."));
+  }
+  box.replaceChildren(...kids);
 }
 
 // ------------------------------------------------------------------ Notes tab
