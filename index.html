@@ -195,10 +195,14 @@
   .pmx-swipe { display: none; }
   table.pmx-list { width: 100%; border-collapse: collapse; font-size: 14px; } table.pmx-list td { padding: 6px 8px; border-top: 1px solid var(--grid); vertical-align: top; }
   table.pmx-list tr:first-child td { border-top: none; } table.pmx-list td:first-child { font-weight: 600; white-space: nowrap; width: 1%; }
+  table.pmx-list.three th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 8px 4px; }
+  table.pmx-list.three td:last-child { width: 34%; color: var(--ink-2); }
   @media (max-width: 760px) { .pmx-swipe { display: block; } }
   @media (max-width: 600px) {   /* phone: the name above its text, not a squeezed second column */
     table.pmx-list td { display: block; } table.pmx-list td:first-child { width: auto; white-space: normal; padding-bottom: 0; }
-    table.pmx-list td + td { border-top: none; padding-top: 2px; } }
+    table.pmx-list td + td { border-top: none; padding-top: 2px; }
+    table.pmx-list.three thead { display: none; } table.pmx-list.three td:last-child { width: auto; font-size: 13px; }
+    table.pmx-list.three td:last-child::before { content: "Account: "; font-weight: 600; } }
   @media (max-width: 760px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl .last { grid-column: 1 / -1; } .sched { grid-template-columns: 34px 1fr; } .sched .times { grid-column: 2; margin-top: -4px; } }
   @media (max-width: 600px) { header { padding: 8px 12px; gap: 8px; } header h1 { font-size: 16px; } main { padding: 12px; } main.wide { padding: 6px; }
     /* Phone header and tabs take as little height as possible (Russ, 2026-11-06 evening: the tabs took half the screen
@@ -1797,12 +1801,18 @@ function renderProcessMap() {
       ["Every hour", "The PC reads the Metasys schedules and looks for schedule changes for the Audit tab."],
       ["Every day", "3:10 AM local clean-up, 3:15 AM point names re-read, 3:20 AM cloud clean-up."],
       ["How long it is kept", "On the PC: all 331 points, 90 days of minute values, summaries forever. In the cloud: the current value of every point, and history only for the 28 points worth charting (room, discharge and outdoor temperatures, setpoints, floor slabs, boilers): 7 days of minute values, 400 days of 15-minute, hourly forever. That keeps the free 500 MB database small (2026-11-13)."]])),
-    el("section", { class: "card" }, el("h2", {}, "Websites and services"), rows([
-      ["hvac.morrisnorth.org", "This page, hosted free on GitHub Pages (hvac-lab/hvac); the name comes from GoDaddy."],
-      ["Supabase", "The cloud database (free plan) and the sign-in; only people on the Admin tab's list see anything."],
-      ["Google", "Sign-in with a Google account; Gmail sends the alert and sign-in emails."],
-      ["ntfy.sh", "Push messages to phones for alerts."],
-      ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet."]])),
+    // with the account behind each one (Russ, 2026-11-13); never a password or key here
+    el("section", { class: "card" }, el("h2", {}, "Websites and services"), el("table", { class: "pmx-list three" },
+      el("thead", {}, el("tr", {}, el("th", {}, "Service"), el("th", {}, "What it does"), el("th", {}, "Account"))),
+      el("tbody", {}, ...[
+        ["GitHub", "Holds this page and publishes it free at hvac.morrisnorth.org (repository hvac-lab/hvac).", "GitHub account hvac-lab, email hvac@morrisnorth.org (signs in with that Google account)"],
+        ["GoDaddy", "The morrisnorth.org name and its DNS records (hvac, stream).", "Russ's GoDaddy account"],
+        ["Supabase", "The cloud database (free plan) and the page's sign-in.", "Sign in with GitHub as hvac-lab; organization “hvac-lab's Org”, project “hvac-lab's Project”"],
+        ["Google sign-in", "The “Sign in with Google” button (Google Cloud app “Morris North HVAC”). Who may look in is the Admin tab's list.", "Set up by Russ in Google Cloud; support email russ.koehl@morrisnorth.org (which Google account holds it is not recorded)"],
+        ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to russ.koehl@morrisnorth.org"],
+        ["ntfy.sh", "Push messages to phones for alerts, also Supabase's “poller silent”.", "No account: a private topic name (on the PC encrypted, and in Supabase), the same one the stream automation uses; phones subscribe to it in the ntfy app"],
+        ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens have their own login"],
+      ].map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b), el("td", {}, c)))))),
     // Russ, 2026-11-13: document how the PC reaches out, where the code is and how to change it, and GoDaddy
     el("section", { class: "card" }, el("h2", {}, "How the PC connects: it calls out, nothing reaches in"), rows([
       ["Metasys engine", "BACnet over the church network only (UDP 47808, to 192.168.1.10). The PC's one inbound firewall rule lets answers in from that engine alone, and only for the poller program."],
