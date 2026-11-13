@@ -1700,7 +1700,7 @@ async function adminCall(fn, args) {
 // (Russ, 2026-11-13). KEEP IT CURRENT: when an interval, a website / service, a limit or a step changes (poller,
 // cloud push, alerts, commands, page hosting), change it here too and move PMAP_UPDATED. Drawn as SVG in a fixed
 // frame; coordinates are by hand and an arrow ends at the edge of the box it points to.
-const PMAP_UPDATED = "2026-11-13";
+const PMAP_UPDATED = "2026-11-13";   // also: cloud history for 28 points only (supabase.historyPoints)
 function renderProcessMap() {
   const K = { gear: "var(--muted)", jci: "var(--s2)", pc: "var(--s1)", web: "var(--s3)", people: "var(--s7)", hand: "var(--s4)" };
   const S = (tag, attrs = {}, ...kids) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -1788,12 +1788,12 @@ function renderProcessMap() {
     el("section", { class: "card" }, el("h2", {}, "Changing a temperature from this website"), el("div", { class: "pmx-wrap" }, change), swipe(),
       el("p", { class: "hint", style: "margin:6px 0 0" }, "Priority 8 is the same “operator override” the Metasys screen makes. A setpoint does not start a unit the schedule has off; “Run now” does that the same way, with the temporary-occupancy switch.")),
     el("section", { class: "card" }, el("h2", {}, "How often"), rows([
-      ["Every minute", "The PC reads 331 points from Metasys, saves them, checks the alert rules, sends new values to Supabase and picks up temperature requests. The web page refreshes."],
+      ["Every minute", "The PC reads 331 points from Metasys, saves them, checks the alert rules, sends the current value of all 331 to Supabase (and the history of 28 of them, below) and picks up temperature requests. The web page refreshes."],
       ["Every 5 minutes", "The PC picks up changed alert rules from the page."],
       ["Every 15 minutes", "15-minute summaries are made for the charts; Windows restarts the poller if it ever stopped."],
       ["Every hour", "The PC reads the Metasys schedules and looks for schedule changes for the Audit tab."],
       ["Every day", "3:10 AM local clean-up, 3:15 AM point names re-read, 3:20 AM cloud clean-up."],
-      ["How long it is kept", "On the PC: 90 days of minute values, summaries forever. In the cloud: 7 days of minute values, 400 days of 15-minute, hourly forever."]])),
+      ["How long it is kept", "On the PC: all 331 points, 90 days of minute values, summaries forever. In the cloud: the current value of every point, and history only for the 28 points worth charting (room, discharge and outdoor temperatures, setpoints, floor slabs, boilers): 7 days of minute values, 400 days of 15-minute, hourly forever. That keeps the free 500 MB database small (2026-11-13)."]])),
     el("section", { class: "card" }, el("h2", {}, "Websites and services"), rows([
       ["hvac.morrisnorth.org", "This page, hosted free on GitHub Pages (hvac-lab/hvac); the name comes from GoDaddy."],
       ["Supabase", "The cloud database (free plan) and the sign-in; only people on the Admin tab's list see anything."],
