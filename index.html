@@ -213,6 +213,8 @@
   .maintHead { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; } .maintHead > div:first-child { flex: 1; min-width: 260px; }
   .maintHead b { font-size: 15px; } .maintEvery { color: var(--ink-2); font-size: 13px; } .maintRow .badge { font-size: 12px; padding: 1px 8px; }
   .maintWhat { color: var(--ink); font-size: 14px; line-height: 1.5; margin-top: 3px; } .maintLast { color: var(--ink-2); font-size: 14px; margin-top: 3px; }
+  details.maintMore { margin-top: 6px; } details.maintMore > summary { cursor: pointer; font-weight: 650; color: var(--s1); font-size: 14px; }
+  details.maintMore ul, details.maintMore ol { margin: 6px 0 2px; padding-left: 24px; } details.maintMore li { margin: 4px 0; font-size: 14px; line-height: 1.45; color: var(--ink); }
   .maintSum { display: flex; gap: 10px 26px; flex-wrap: wrap; align-items: baseline; font-size: 15px; } .maintNum { font-size: 22px; }
   .maintNum.critical { color: var(--critical); } .maintNum.warning { color: var(--serious); } .maintNum.ok { color: var(--good); }
   .filtBar { padding: 6px 10px 8px; font-size: 14px; border-top: 1px solid var(--border); margin-top: 2px; }
@@ -608,14 +610,47 @@ function renderTab() {
 // they are one task, "Annual service review", whose text says what to make sure the visit covers.
 const MAINT = [
   ["Annual service (contractor)", [
-    { key: "annual-service", name: "Annual service review - Ellingson (Alexandria, MN)", months: 12, what: "Log the visit here. Make sure it covers: both boilers (combustion test, igniter and flame sensor - Boiler-1 starts about 44 times a day - heat exchanger, condensate trap, low-water cutoff and relief valves) and a Boiler-2 test fire; the condensate neutralizer media (the chips the boiler condensate drains through); heating-loop glycol test; pump strainers, VFDs and a CP-1 run; expansion tank charge; air separator blow-down and the bypass filter bag; air handler belts, bearings, coils, drain pans, dampers and freeze-stat test; outdoor cooling units." }]],
+    // expandable lists (Russ, 2026-11-13: "allow them to be expanded; the service review should list what needs to be checked for
+    // sure, the backup, list how to do it"): `list` = the lines, `listTitle` = the line that opens it, `ordered` = numbered steps
+    { key: "annual-service", name: "Annual service review - Ellingson (Alexandria, MN)", months: 12, what: "Log the visit here. Open the list below and go through it with the technician so nothing is skipped.",
+      listTitle: "What must be checked", list: [
+        "BOTH boilers: combustion analysis at low and high fire (O2 / CO2 / CO) and adjust",
+        "Igniter and flame sensor: inspect, clean or replace - Boiler-1 starts about 44 times a day (Notes 3)",
+        "Burner and heat exchanger: inspect and clean",
+        "Condensate trap and drain line: clean",
+        "Low-water cutoff: test; pressure relief valves: check, discharge pipe clear",
+        "Gas valve, gas pressure and a leak check; flue (exhaust) and combustion-air pipes clear and sealed",
+        "Boiler-2: test fire it (last ran Nov 3, 2026), and ask why its inlet / header sensors read fixed values (Notes 9)",
+        "Ask for an anti-short-cycle / minimum off-time setting on Boiler-1 (Notes 18)",
+        "Condensate neutralizer: check the chips, refill when about half gone, outflow pH above 6",
+        "Heating-loop glycol: freeze point and corrosion inhibitor tested; top up the glycol feeder tank",
+        "Pumps CP-1 / CP-2: clean the strainers (suction diffusers), clean the VFD fans, run CP-1",
+        "Ask about pump rotation (CP-1 never rotates in) and the 5 psi pump pressure setpoint (Notes 8 and 17)",
+        "Expansion tank: air pre-charge pressure",
+        "Air separator: blow-down; bypass filter on the chemical feeder loop: change the bag",
+        "Air handlers AHU-1, -2, -3: belts (tension, wear), bearings greased, coils cleaned",
+        "Drain pans and condensate traps clean (before the cooling season)",
+        "Dampers and actuators move through their full stroke; ask about the 3 % outdoor-air minimum and the negative building pressure (Notes 7)",
+        "Freeze-stat (low-temperature cutout LT-A) tested on each air handler",
+        "Outdoor cooling units: condenser coils cleaned, refrigerant checked (spring visit)",
+        "Vestibule cabinet heater fans CUH-1 / CUH-2 - they never show running (Notes 2)",
+        "If they also do the plumbing: recirculation pump RCP-1 does not run (Notes 1)",
+        "Write down what they changed or replaced in the note when you log the visit"] }]],
   ["Air handlers", [
     ...AHUS.map(a => ({ key: "filters-" + a.key.toLowerCase(), ahu: a.key, name: `Air filters ${a.key} (${a.where})`, months: 3, what: "Every 3 months, or when the pressure drop reaches about 0.5 in. Also logged from the Air handlers tab." })),
     { key: "smoke-detectors", name: "Duct smoke detectors", months: 12, what: "Supply and return detector on each air handler; fire-code testing, usually by the fire alarm company." }]],
   ["Plumbing", [
     { key: "water-heaters", name: "Water heaters WH-1 / WH-2", months: 12, what: "Flush the sediment, check the anode rod and the mixing valve TMV-1 (and why RCP-1 does not run, Notes item 1)." }]],
   ["Controls", [
-    { key: "metasys-backup", name: "Metasys backup and clock", months: 12, what: "Back up the Metasys database; set the engine clock (it ran about 3 minutes fast in Nov 2026)." },
+    { key: "metasys-backup", name: "Metasys backup and clock", months: 12, what: "Back up the Metasys database; set the engine clock (it ran about 3 minutes fast in Nov 2026).",
+      listTitle: "How to do it", ordered: true, list: [
+        "Who: the controls contractor can do it during a visit, or someone with a Metasys login (accounts morris / morris2). Menu names below are Metasys 6.x; they may differ a little.",
+        "Save the engine's running database to its own memory: sign in to the Metasys screens (Site Management Portal) on the engine NCE-1, 192.168.1.10, right-click the engine and choose Commands > Archive. Do this after any change to schedules or settings, so a power loss does not lose them.",
+        "Make an off-site copy with the System Configuration Tool (SCT, Johnson Controls software, usually on the contractor's laptop): open the site's archive, right-click NCE-1 > Upload to pull the engine's current database into the archive.",
+        "Still in SCT: back up the archive database (Tools > Database > Backup) to a file, and keep the file somewhere besides that laptop, e.g. the church's shared drive.",
+        "Clock: in the Site Management Portal open the Site (or engine) settings, check Date / Time and Time Zone (US Central, daylight saving on). Better: set Time Sync to SNTP with a time server (the church router, or time.windows.com) so it never drifts again.",
+        "Check: after a few minutes, Boiler room tab > last-ran times and the Audit tab should line up with the real clock (the engine ran about 3 minutes fast on Nov 13, 2026).",
+        "Log it here with Log done, and note where the backup file was saved."] },
     { key: "sensor-check", name: "Sensor spot-check", months: 12, what: "Compare a few sensors with a handheld thermometer: outdoor, a room, supply water." }]]];
 async function loadMaint() {
   const filt = await loadFilterChanges();
@@ -655,6 +690,10 @@ function drawMaintRow(t, mode) {
   const head = el("div", { class: "maintHead" },
     el("div", {}, el("div", {}, el("b", {}, t.name), " ", el("span", { class: "badge " + s.cls }, s.text), el("span", { class: "maintEvery" }, ` every ${t.months === 12 ? "year" : t.months + " months"}`)),
       el("div", { class: "maintWhat" }, t.what),
+      t.list ? (() => { const d = el("details", { class: "maintMore" }, el("summary", {}, `${t.listTitle || "Details"} (${t.list.length})`),
+          el(t.ordered ? "ol" : "ul", {}, ...t.list.map(x => el("li", {}, x))));
+        state.maintOpen = state.maintOpen || {}; if (state.maintOpen[t.key]) d.open = true;
+        d.addEventListener("toggle", () => { state.maintOpen[t.key] = d.open; }); return d; })() : "",
       el("div", { class: "maintLast" }, last ? el("span", {}, "Last done ", el("b", {}, fmtDay(last.done_on)), " by ", el("b", {}, last.done_by), last.note ? ` · ${last.note}` : "") : "Not logged yet.")),
     el("div", { class: "filtBtns" }, el("button", { class: "small", onclick: () => drawMaintRow(t, "form") }, "Log done"),
       el("button", { class: "small", onclick: () => drawMaintRow(t, mode === "history" ? "view" : "history") }, mode === "history" ? "Hide history" : `History (${rows.length})`)));
