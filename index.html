@@ -1822,13 +1822,15 @@ function processMapParts() {
         ["Supabase", "The cloud database (free plan) and the page's sign-in.", "The GitHub account: “Continue with GitHub” as hvac-lab, hvac@morrisnorth.org; organization “hvac-lab's Org”, project “hvac-lab's Project”"],
         ["Google sign-in", "The “Sign in with Google” button (Google Cloud app “Morris North HVAC”). Who may look in is the Admin tab's list.", "Set up by Russ in Google Cloud; support email russ.koehl@morrisnorth.org (which Google account holds it is not recorded)"],
         ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to everyone with the Alerts role (Admin tab)"],
-        // with how to set a phone up, right in the row (Russ, 2026-11-13); the topic name itself only in Phone alerts above
+        // with how to set a phone up, right in the row (Russ, 2026-11-13); the topic name and its Copy button are filled in
+        // by drawPushBox() from hvac_alert_topic() (admins only), never written into this public file
         ["ntfy.sh", el("span", {}, "Push messages to phones for alerts, also Supabase's “poller silent”. How to set it up:",
           el("ol", { class: "pushSteps", style: "margin:4px 0 0" },
             el("li", {}, "Install the free ntfy app: ", el("a", { href: "https://apps.apple.com/app/ntfy/id1625396347", target: "_blank", rel: "noopener", style: "color: var(--s1)" }, "iPhone"), " · ",
               el("a", { href: "https://play.google.com/store/apps/details?id=io.heckel.ntfy", target: "_blank", rel: "noopener", style: "color: var(--s1)" }, "Android"), "."),
-            el("li", {}, "In the app tap ", el("b", {}, "+"), " (subscribe to a topic), keep the server ntfy.sh and enter the HVAC topic name: copy it from Phone alerts above."),
-            el("li", {}, "On a computer, nothing to install: open ntfy.sh/ followed by the topic name in the browser, allow notifications and leave the tab open."),
+            el("li", {}, "In the app tap ", el("b", {}, "+"), " (subscribe to a topic), keep the server ntfy.sh and enter the HVAC topic name: ",
+              el("span", { class: "pmapTopic" }, "(loading…)")),
+            el("li", {}, "On a computer, nothing to install: open ", el("span", { class: "pmapTopicLink" }, "ntfy.sh/ followed by the topic name"), " in the browser, allow notifications and leave the tab open."),
             el("li", {}, "Press ", el("b", {}, "Send a test to phones"), " above; the test should show within a few seconds."))),
           "No account: a private HVAC topic name (on the PC encrypted, and in Supabase; since 2026-11-13 not the stream automation's); phones subscribe to it in the ntfy app, see Phone alerts above"],
         ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens use the accounts morris and morris2"],
@@ -1888,10 +1890,16 @@ async function drawPushBox() {
   try {
     if (demo) topic = "mn-hvac-demo-topic";
     else { const { data, error } = await state.sb.rpc("hvac_alert_topic"); if (error) throw new Error(error.message); topic = data; }
-  } catch (e) { box.replaceChildren(el("h2", {}, "Phone alerts"), el("p", { class: "hint" }, "Could not load the alert topic: " + (e.message || e))); return; }
-  if (!topic) { box.replaceChildren(el("h2", {}, "Phone alerts"), el("p", { class: "hint" }, "No alert topic has been set up yet.")); return; }
+  } catch (e) { box.replaceChildren(el("h2", {}, "Phone alerts"), el("p", { class: "hint" }, "Could not load the alert topic: " + (e.message || e)));
+    document.querySelectorAll(".pmapTopic").forEach(x => x.textContent = "(could not load it, see Phone alerts above)"); return; }
+  if (!topic) { box.replaceChildren(el("h2", {}, "Phone alerts"), el("p", { class: "hint" }, "No alert topic has been set up yet.")); document.querySelectorAll(".pmapTopic").forEach(x => x.textContent = "(none set up yet)"); return; }
+  const link = (href, text) => el("a", { href, target: "_blank", rel: "noopener", style: "color: var(--s1)" }, text);
+  const copyBtn = note => el("button", { class: "small", onclick: async () => { try { await navigator.clipboard.writeText(topic); note.textContent = "Copied."; } catch { note.textContent = "Select the name and copy it."; } } }, "Copy");
+  // the same name and Copy button in the Process Map's ntfy.sh row (Russ, 2026-11-13)
+  document.querySelectorAll(".pmapTopic").forEach(x => { const note = el("span", { class: "hint" }); x.replaceChildren(el("b", {}, "ntfy.sh: "), el("code", { class: "topic" }, topic), " ", copyBtn(note), " ", note); });
+  document.querySelectorAll(".pmapTopicLink").forEach(x => x.replaceChildren(link("https://ntfy.sh/" + encodeURIComponent(topic), "ntfy.sh/" + topic)));
   const msg = el("span", { class: "hint" });
-  const copy = el("button", { class: "small", onclick: async () => { try { await navigator.clipboard.writeText(topic); msg.textContent = "Copied."; } catch { msg.textContent = "Select the name and copy it."; } } }, "Copy");
+  const copy = copyBtn(msg);
   const test = el("button", { class: "small", onclick: async () => { test.disabled = true; msg.textContent = "Sending…";
     try {
       if (!demo) { const r = await fetch("https://ntfy.sh/" + encodeURIComponent(topic), { method: "POST", body: `Test from the HVAC page, sent by ${state.user?.email || "an admin"}. Phone alerts work.`,
@@ -1900,7 +1908,6 @@ async function drawPushBox() {
     } catch (e) { msg.textContent = "Could not send: " + (e.message || e); }
     test.disabled = false; } }, "Send a test to phones");
   test.title = "Goes to every phone subscribed to the topic (a push cannot be sent to one phone only)";   // kept for that reason (Russ, 2026-11-13)
-  const link = (href, text) => el("a", { href, target: "_blank", rel: "noopener", style: "color: var(--s1)" }, text);
   box.replaceChildren(el("h2", {}, "Phone alerts"),
     el("ol", { class: "pushSteps" },
       el("li", {}, "Install the free ", el("b", {}, "ntfy"), " app: ", link("https://apps.apple.com/app/ntfy/id1625396347", "iPhone"), " · ",
