@@ -985,7 +985,7 @@ function renderBoilerRoom() {
   screen(el("div", { class: "card", style: "padding:6px" }, el("div", { id: "boilerRoom", class: "broom" }, "Loading…")));
   refreshBoilerRoom();
 }
-// When Boiler-2 and the pumps CP-1 / CP-2 last ran (Russ, 2026-11-13): Boiler-2's fire rate (AV-408) or a pump's status
+// When Boiler-2 and the pumps CP-1 / CP-2 last ran, from this logger's history (Russ, 2026-11-13): Boiler-2's fire rate (AV-408) or a pump's status
 // (CPn-S; both in supabase.historyPoints, 30 points since the pumps were added) above 0. First the
 // newest 15-minute summary with a maximum above 0 (400 days kept), then the last firing minute in the 30 minutes from its
 // start (the quarter hour now running has no summary yet; minutes are kept 7 days; asking the minute table without a time window timed out when nothing matched), else "not
@@ -1001,19 +1001,36 @@ async function loadLastRun(name) {
     return m ? { at: m } : { at: q, approx: true }; }
   return { since: await one("hvac_rollup_15m", "vmax", true, false) };
 }
-function lastRunText(name) {
-  const lr = state.lastRun && state.lastRun.v && state.lastRun.v[name];
-  const fmt = ts => new Date(ts).toLocaleString("en-US", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
-  return !lr ? "last ran: –" : lr.at ? `last ran ${lr.approx ? "≈" : ""}${fmt(lr.at)}` : lr.since ? `not run since ${new Date(lr.since).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}` : "last ran: –";
+// The engine's own trend log adds what happened before this logger started (Russ, 2026-11-13: "Find the real date";
+// CP-1 last ran 10/18/2026, not "since 11/5"): hvac_last_run, read hourly by the PC (hvac\lastrun.py). The newer of the
+// two wins; with neither, "no run logged since" the older of the two starts. Always with the year.
+async function loadTrendRuns() {
+  if (demo) { const id = n => state.byName.get(n)?.id; const t = (d) => new Date(Date.now() - d * 864e5).toISOString();
+    return { [id("Local Application.CP1-S")]: { last_on: t(26.1), last_off: t(26), log_start: t(154) }, [id("Local Application.BLR2-S")]: { last_off: t(10), log_start: t(11) } }; }
+  const { data, error } = await state.sb.from("hvac_last_run").select("*"); if (error) throw new Error(error.message);
+  return Object.fromEntries((data || []).map(r => [r.point_id, r]));
 }
+function lastRunParts(name, trendName) {
+  const lr = state.lastRun && state.lastRun.v && state.lastRun.v[name];
+  const tr = state.lastRun && state.lastRun.trend && state.lastRun.trend[state.byName.get(trendName || name)?.id];
+  const fmt = ts => new Date(ts).toLocaleString("en-US", { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const day = ts => new Date(ts).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+  const runs = [];
+  if (lr && lr.at) runs.push({ t: new Date(lr.at).getTime(), approx: !!lr.approx });
+  if (tr && (tr.last_off || (tr.last_on && !tr.on_now))) runs.push({ t: new Date(tr.last_off || tr.last_on).getTime() });
+  if (runs.length) { const r = runs.sort((a, b) => b.t - a.t)[0]; return { head: "last ran", when: (r.approx ? "≈" : "") + fmt(r.t) }; }
+  const starts = [lr && lr.since, tr && tr.log_start].filter(Boolean).map(x => new Date(x).getTime());
+  return starts.length ? { head: "no run logged since", when: day(Math.min(...starts)) } : { head: "last ran", when: "–" };
+}
+function lastRunText(name, trendName) { const p = lastRunParts(name, trendName); return `${p.head} ${p.when}`; }
 async function refreshBoilerRoom() {
   clearTimeout(state.timer);
   const box = $("#boilerRoom"); if (!box) return;
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus();
     if (!state.lastRun || Date.now() - state.lastRun.t > 5 * 60000) {
       const names = [BOILERS[1].fire, ...BR.pumps.map(p => p.s)];
-      const got = await Promise.all(names.map(n => loadLastRun(n).catch(() => null)));
-      state.lastRun = { t: Date.now(), v: Object.fromEntries(names.map((n, i) => [n, got[i]])) }; }
+      const [got, trend] = await Promise.all([Promise.all(names.map(n => loadLastRun(n).catch(() => null))), loadTrendRuns().catch(() => ({}))]);
+      state.lastRun = { t: Date.now(), v: Object.fromEntries(names.map((n, i) => [n, got[i]])), trend }; }
     box.innerHTML = boilerRoomSvg(); }
   catch (e) { box.replaceChildren(el("b", {}, "Could not load: "), String(e.message || e)); }
   state.timer = setTimeout(refreshBoilerRoom, 60000);
@@ -1061,10 +1078,13 @@ function boilerRoomSvg() {
     for (const w of words) ((l1.join(" ").length + w.length < 22 && !l2.length) ? l1 : l2).push(w);
     s += label(x + 50, 258, l1.join(" "), "middle", 7.5, alarm || st.cls === "err" ? bad : ink2) + label(x + 50, 267, l2.join(" "), "middle", 7.5, alarm || st.cls === "err" ? bad : ink2);
     s += label(x + 50, 286, num(bb.b.supply, 1, " °F"), "middle", 18, ink, 700) + label(x + 50, 298, "outlet", "middle", 9);
-    if (st.fire > 0) s += label(x + 50, 312, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700); else s += label(x + 50, 312, "not firing", "middle", 10);
+    // Boiler-2 not firing: "not firing · last ran" and the date and time under it, at the bottom of its box (Russ, 2026-11-13;
+    // fire-rate history and the BLR2-S trend log, see lastRunParts)
+    const lrp = i === 1 && !(st.fire > 0) ? lastRunParts(bb.b.fire, bb.s) : null;
+    if (st.fire > 0) s += label(x + 50, 312, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700);
+    else s += lrp ? label(x + 50, 311, `not firing · ${lrp.head}`, "middle", 7.5) : label(x + 50, 312, "not firing", "middle", 10);
     if (i === 0) s += label(x + 50, 324, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
-    // Boiler-2: when it last ran, at the bottom of its box (Russ, 2026-11-13; loadLastRun)
-    if (i === 1 && !(st.fire > 0)) s += label(x + 50, 324, lastRunText(bb.b.fire), "middle", 8, ink2, 600);
+    if (lrp) s += label(x + 50, 323, lrp.when, "middle", 8.5, ink2, 700);
     // pressure relief valve (piped down to 12" above the floor) and the condensate line through its acid neutralizer, as drawn
     s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + `<path d="M 128 250 V 300" transform="translate(${x},0)" stroke="${ink2}" stroke-width="1"/>` + label(x + 104, 240, "relief valve", "start", 7);
     s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 346, "condensate via", "start", 7) + label(x + 128, 354, "acid neutralizer", "start", 7);
@@ -1849,7 +1869,7 @@ function processMapParts() {
       ["Every minute", "The PC reads 331 points from Metasys, saves them, checks the alert rules, sends the current value of all 331 to Supabase (and the history of 30 of them, below) and picks up temperature requests. The web page refreshes."],
       ["Every 5 minutes", "The PC picks up changed alert rules from the page."],
       ["Every 15 minutes", "15-minute summaries are made for the charts; Windows restarts the poller if it ever stopped."],
-      ["Every hour", "The PC reads the Metasys schedules and looks for schedule changes for the Audit tab."],
+      ["Every hour", "The PC reads the Metasys schedules and looks for schedule changes for the Audit tab, and reads the engine's own trend logs of the pumps and boilers to tell when each last ran (Boiler room tab)."],
       ["Every day", "3:10 AM local clean-up, 3:15 AM point names re-read, 3:20 AM cloud clean-up."],
       ["How long it is kept", "On the PC: all 331 points, 90 days of minute values, summaries forever. In the cloud: the current value of every point, and history only for the 30 points worth charting (room, discharge and outdoor temperatures, setpoints, floor slabs, boilers, pumps on/off): 7 days of minute values, 400 days of 15-minute, hourly forever. That keeps the free 500 MB database small (2026-11-13)."]])),
     // with the account behind each one (Russ, 2026-11-13); never a password or key here
