@@ -636,6 +636,22 @@ const MAINT = [
         "Vestibule cabinet heater fans CUH-1 / CUH-2 - they never show running (Notes 2)",
         "If they also do the plumbing: recirculation pump RCP-1 does not run (Notes 1)",
         "Write down what they changed or replaced in the note when you log the visit"] }]],
+  // its own task too (Russ, 2026-11-13: "Add this to the maintenance list, the condensate neutralizer, why and what to do")
+  ["Boiler room", [
+    { key: "neutralizer", name: "Condensate neutralizer", months: 12, what: "The small tube or box of limestone chips between each boiler's condensate line and the floor drain. Check it every year; the chips usually need refilling every 1-2 years.",
+      listTitle: "Why and what to do", ordered: true, list: [
+        "Why: the boilers (AERCO Benchmark) are condensing boilers. They cool their exhaust so far that water condenses out of it, several gallons a day in cold weather.",
+        "That water is acidic (about pH 3-4, like vinegar). Straight into the drain it slowly eats cast-iron drain pipe and the floor drain.",
+        "The neutralizer's limestone (or marble) chips raise it to a safe pH 6-8. The chips dissolve as they work, so they run out, and they can clog with sludge.",
+        "Warning signs: chips mostly gone, mushy or coated; water backing up or leaking around it; a boiler shutting down on a blocked condensate drain (a full trap can lock a boiler out).",
+        "Find it: next to each boiler where the condensate tube runs down to the floor drain (plan M3.1; the Boiler room tab marks it under each boiler as 'condensate via acid neutralizer').",
+        "Look at the chips through the clear body or by opening the cap: replace them if less than about half are left, or if they are soft or coated.",
+        "Optional but easy: hold a pH test strip in the water coming out. 6 or higher is fine; below 6 means the chips are used up.",
+        "To refill: wear gloves and eye protection; open the cap, put the old chips in the trash (not down the drain), rinse out the sludge, refill with the maker's refill media (the brand is on the label; AERCO and others sell kits), close it.",
+        "Make sure the tubes are pushed back in and slope down to the drain all the way, with no sag where water can sit.",
+        "After a boiler has run a while: water flows in and out, nothing leaks.",
+        "Log it here with Log done; in the note say checked or refilled, and the pH if you tested it.",
+        "Ellingson's annual service should check it too (it is on their list above)."] }]],
   ["Air handlers", [
     ...AHUS.map(a => ({ key: "filters-" + a.key.toLowerCase(), ahu: a.key, name: `Air filters ${a.key} (${a.where})`, months: 3, what: "Every 3 months, or when the pressure drop reaches about 0.5 in. Also logged from the Air handlers tab." })),
     { key: "smoke-detectors", name: "Duct smoke detectors", months: 12, what: "Supply and return detector on each air handler; fire-code testing, usually by the fire alarm company." }]],
