@@ -1198,11 +1198,13 @@ function ahuSvg(a) {
   if (alert) s += `<rect x="440" y="10" width="545" height="20" rx="10" fill="${bad}"/>` + label(712, 24, "ALERT: " + (alert.message || "").slice(0, 85), "middle", 9.5, "#fff", 700);
   // --- the rooms (right): zone temperature, setpoint, humidity, building pressure
   s += `<rect x="868" y="70" width="118" height="245" rx="10" fill="${surface}" stroke="${css(SERIES[i])}" stroke-width="2.5"/>`;
-  // the rooms' own names in the heading's place and font (was "THE ROOMS" over them in small print; Russ, 2026-11-13);
-  // up to 16 capitals a line, so a long name ("Fellowship Area, Main Entry") wraps to two lines inside the box
-  const roomLines = a.where.toUpperCase().split(" ").reduce((ls, w) => { const last = ls[ls.length - 1];
-    if (last && (last + " " + w).length <= 16) ls[ls.length - 1] = last + " " + w; else ls.push(w); return ls; }, []);
-  s += roomLines.map((l, j) => label(927, (roomLines.length > 1 ? 86 : 92) + j * 12, l, "middle", 10, ink2, 700)).join("");
+  // the rooms' own names in the heading's place (was "THE ROOMS" over them in small print), in the title's font: 17 bold,
+  // same ink as "AHU-1" (Russ, 2026-11-13); up to 11 letters a line so it stays inside the box ("Fellowship / Area, Main /
+  // Entry"), and with three lines the values below move down 10 to keep clear of it
+  const roomLines = a.where.split(" ").reduce((ls, w) => { const last = ls[ls.length - 1];
+    if (last && (last + " " + w).length <= 11) ls[ls.length - 1] = last + " " + w; else ls.push(w); return ls; }, []);
+  s += roomLines.map((l, j) => label(927, (roomLines.length > 1 ? 91 : 100) + j * 18, l, "middle", 17, ink, 700)).join("");
+  s += `<g transform="translate(0 ${roomLines.length > 2 ? 10 : 0})">`;
   s += label(927, 150, num("ZN-T", 1), "middle", 26, ink, 700) + label(927, 164, "°F zone (ZN-T)", "middle", 9);
   s += label(927, 186, `setpoint ${num("ZNT-SP", 1, " °F")}`, "middle", 10, ink2, 600) + (has("EFFHTG-SP") ? label(927, 198, `heat below ${num("EFFHTG-SP", 0)} · cool above ${num("EFFCLG-SP", 0)}`, "middle", 7.5) : "");
   s += label(927, 220, `${num("RA-H", 0, "%")} humidity`, "middle", 12, ink2, 600) + label(927, 231, "of the return air", "middle", 7.5);
@@ -1211,6 +1213,7 @@ function ahuSvg(a) {
   if (bp != null && bp < 0) s += label(927, 281, "below outdoors: air is being sucked in", "middle", 7, bad);
   if (extra.dehum) { const rh = pt(extra.dehum + "RH Setpoint"), ds = pt(extra.dehum + "Dehumid Schedule");
     if (rh) s += label(927, 300, `dehumidify ${ds && Number(ds.last_value) === 1 ? "ON" : "off"} · humidity setpoint ${Number(rh.last_value).toFixed(0)}%`, "middle", 7.5, ds && Number(ds.last_value) === 1 ? blue : muted, 600); }
+  s += `</g>`;
   // --- return side (top): rooms -> RA sensors -> smoke detector -> return fan -> tee: exhaust damper up to the louver, return damper down to the mixing box
   s += duct(`M 868 ${RY} H 300`, rfOn, retColor, rfSpd) + duct(`M 420 ${RY} V ${EY} H 60`, rfOn && (val("EAD-O") || 0) > 0, retColor, rfSpd);
   s += arrow(853, RY, "l") + arrow(690, RY, "l") + arrow(420, EY + 25, "u") + arrow(150, EY, "l");   // 853: clear of the RA-T value (Russ, 2026-11-06)
@@ -1819,7 +1822,15 @@ function processMapParts() {
         ["Supabase", "The cloud database (free plan) and the page's sign-in.", "The GitHub account: “Continue with GitHub” as hvac-lab, hvac@morrisnorth.org; organization “hvac-lab's Org”, project “hvac-lab's Project”"],
         ["Google sign-in", "The “Sign in with Google” button (Google Cloud app “Morris North HVAC”). Who may look in is the Admin tab's list.", "Set up by Russ in Google Cloud; support email russ.koehl@morrisnorth.org (which Google account holds it is not recorded)"],
         ["Gmail", "Sends the alert emails and the page's sign-in emails (as “Morris North HVAC”).", "russ.koehl@morrisnorth.org, with an app password (on the PC encrypted, and in Supabase); alerts go to everyone with the Alerts role (Admin tab)"],
-        ["ntfy.sh", "Push messages to phones for alerts, also Supabase's “poller silent”.", "No account: a private HVAC topic name (on the PC encrypted, and in Supabase; since 2026-11-13 not the stream automation's); phones subscribe to it in the ntfy app, see Phone alerts above"],
+        // with how to set a phone up, right in the row (Russ, 2026-11-13); the topic name itself only in Phone alerts above
+        ["ntfy.sh", el("span", {}, "Push messages to phones for alerts, also Supabase's “poller silent”. How to set it up:",
+          el("ol", { class: "pushSteps", style: "margin:4px 0 0" },
+            el("li", {}, "Install the free ntfy app: ", el("a", { href: "https://apps.apple.com/app/ntfy/id1625396347", target: "_blank", rel: "noopener", style: "color: var(--s1)" }, "iPhone"), " · ",
+              el("a", { href: "https://play.google.com/store/apps/details?id=io.heckel.ntfy", target: "_blank", rel: "noopener", style: "color: var(--s1)" }, "Android"), "."),
+            el("li", {}, "In the app tap ", el("b", {}, "+"), " (subscribe to a topic), keep the server ntfy.sh and enter the HVAC topic name: copy it from Phone alerts above."),
+            el("li", {}, "On a computer, nothing to install: open ntfy.sh/ followed by the topic name in the browser, allow notifications and leave the tab open."),
+            el("li", {}, "Press ", el("b", {}, "Send a test to phones"), " above; the test should show within a few seconds."))),
+          "No account: a private HVAC topic name (on the PC encrypted, and in Supabase; since 2026-11-13 not the stream automation's); phones subscribe to it in the ntfy app, see Phone alerts above"],
         ["Johnson Metasys", "The building's own controls (engine NCE-1 on the church network); never reachable from the internet.", "No login for the PC (BACnet); the Metasys screens use the accounts morris and morris2"],
       // the email addresses and the Metasys account names in the Account column in bold (Russ, 2026-11-13)
       ].map(([a, b, c]) => el("tr", {}, el("td", {}, a), el("td", {}, b),
