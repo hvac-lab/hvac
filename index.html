@@ -1004,7 +1004,7 @@ async function loadLastRun(name) {
 function lastRunText(name) {
   const lr = state.lastRun && state.lastRun.v && state.lastRun.v[name];
   const fmt = ts => new Date(ts).toLocaleString("en-US", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
-  return !lr ? "last ran: –" : lr.at ? `last ran ${lr.approx ? "≈" : ""}${fmt(lr.at)}` : lr.since ? `not run since ${new Date(lr.since).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}` : "last ran: –";
+  return !lr ? "last ran: –" : lr.at ? `last ran ${lr.approx ? "≈" : ""}${fmt(lr.at)}` : lr.since ? `not run since ${new Date(lr.since).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}` : "last ran: –";
 }
 async function refreshBoilerRoom() {
   clearTimeout(state.timer);
