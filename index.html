@@ -1225,7 +1225,7 @@ function renderBoilerRoom() {
   screen(el("div", { class: "card", style: "padding:6px" }, el("div", { id: "boilerRoom", class: "broom" }, "Loading…")));
   refreshBoilerRoom();
 }
-// When Boiler-2 and the pumps CP-1 / CP-2 last ran, from this logger's history (Russ, 2026-11-13): Boiler-2's fire rate (AV-408) or a pump's status
+// When the boilers and the pumps CP-1 / CP-2 last ran, from this logger's history (Russ, 2026-11-13/14): a boiler's fire rate (AV-308 / AV-408) or a pump's status
 // (CPn-S; both in supabase.historyPoints, 30 points since the pumps were added) above 0. First the
 // newest 15-minute summary with a maximum above 0 (400 days kept), then the last firing minute in the 30 minutes from its
 // start (the quarter hour now running has no summary yet; minutes are kept 7 days; asking the minute table without a time window timed out when nothing matched), else "not
@@ -1268,7 +1268,7 @@ async function refreshBoilerRoom() {
   const box = $("#boilerRoom"); if (!box) return;
   try { await Promise.all([loadStatus(), demo ? null : loadPoints()]); renderStatus();
     if (!state.lastRun || Date.now() - state.lastRun.t > 5 * 60000) {
-      const names = [BOILERS[1].fire, ...BR.pumps.map(p => p.s)];
+      const names = [BOILERS[0].fire, BOILERS[1].fire, ...BR.pumps.map(p => p.s)];
       const [got, trend] = await Promise.all([Promise.all(names.map(n => loadLastRun(n).catch(() => null))), loadTrendRuns().catch(() => ({}))]);
       state.lastRun = { t: Date.now(), v: Object.fromEntries(names.map((n, i) => [n, got[i]])), trend }; }
     box.innerHTML = boilerRoomSvg(); }
@@ -1318,13 +1318,15 @@ function boilerRoomSvg() {
     for (const w of words) ((l1.join(" ").length + w.length < 22 && !l2.length) ? l1 : l2).push(w);
     s += label(x + 50, 258, l1.join(" "), "middle", 7.5, alarm || st.cls === "err" ? bad : ink2) + label(x + 50, 267, l2.join(" "), "middle", 7.5, alarm || st.cls === "err" ? bad : ink2);
     s += label(x + 50, 286, num(bb.b.supply, 1, " °F"), "middle", 18, ink, 700) + label(x + 50, 298, "outlet", "middle", 9);
-    // Boiler-2 not firing: "not firing · last ran" and the date and time under it, at the bottom of its box (Russ, 2026-11-13;
-    // fire-rate history and the BLR2-S trend log, see lastRunParts)
-    const lrp = i === 1 && !(st.fire > 0) ? lastRunParts(bb.b.fire, bb.s) : null;
+    // Not firing: "not firing · last ran" and the date and time under it, at the bottom of its box (Boiler-2 Russ, 2026-11-13;
+    // Boiler-1 too, 2026-11-14; fire-rate history and the BLRn-S trend log, see lastRunParts). Boiler-1 also shows its inlet
+    // temperature, so its three lines sit a little closer together.
+    const lrp = !(st.fire > 0) ? lastRunParts(bb.b.fire, bb.s) : null;
+    const y3 = i === 0 && lrp ? [306, 315.5, 325] : [311, 323, 324];
     if (st.fire > 0) s += label(x + 50, 312, `firing ${st.fire.toFixed(0)} %`, "middle", 11, bad, 700);
-    else s += lrp ? label(x + 50, 311, `not firing · ${lrp.head}`, "middle", 7.5) : label(x + 50, 312, "not firing", "middle", 10);
-    if (i === 0) s += label(x + 50, 324, `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", 9);
-    if (lrp) s += label(x + 50, 323, lrp.when, "middle", 8.5, ink2, 700);
+    else s += lrp ? label(x + 50, y3[0], `not firing · ${lrp.head}`, "middle", 7.5) : label(x + 50, 312, "not firing", "middle", 10);
+    if (lrp) s += label(x + 50, y3[1], lrp.when, "middle", 8.5, ink2, 700);
+    if (i === 0) s += label(x + 50, y3[2], `inlet ${num(bb.b.ret, 1, " °F")}`, "middle", lrp ? 8 : 9);
     // pressure relief valve (piped down to 12" above the floor) and the condensate line through its acid neutralizer, as drawn
     s += `<line x1="${x + 100}" y1="250" x2="${x + 118}" y2="250" stroke="${ink2}" stroke-width="1.5"/>` + `<polygon points="${x + 118},${244} ${x + 128},${250} ${x + 118},${256}" fill="${surface}" stroke="${ink2}" stroke-width="1.5"/>` + `<path d="M 128 250 V 300" transform="translate(${x},0)" stroke="${ink2}" stroke-width="1"/>` + label(x + 104, 240, "relief valve", "start", 7);
     s += `<path d="M ${x + 70} 330 V 346 H ${x + 100}" fill="none" stroke="${ink2}" stroke-width="1.5"/>` + `<rect x="${x + 100}" y="341" width="26" height="10" fill="${surface}" stroke="${ink2}" stroke-width="1.2"/>` + label(x + 128, 346, "condensate via", "start", 7) + label(x + 128, 354, "acid neutralizer", "start", 7);
