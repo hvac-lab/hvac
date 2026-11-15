@@ -1549,10 +1549,10 @@ function ahuSvg(a) {
   s += tag(60, SY - 58, "T", `${num("OA-T", 1, " °F")}`, "r") + label(77, SY - 41, `outdoor air (OA-T) · ${num("OA-H", 0, "%")} humidity`, "start", 8);
   s += damper(150, SY, val("OAD-O"), false, "outdoor damper", has("OAD-MINPOS") ? `minimum ${num("OAD-MINPOS", 0, " %")}` : "");
   s += label(225, SY - 24, "OUTDOOR AIR", "middle", 9, ink2, 600);
-  // filter with its pressure drop
+  // filter with its pressure drop: red with "dirty, change it" from 0.5 in. w.c. (Russ, 2026-11-15: red when it reaches the limit)
   const fdp = val("FFILT-DP");
   s += `<rect x="372" y="${SY - 22}" width="12" height="44" fill="${surface}" stroke="${ink2}" stroke-width="1.4"/>`; for (let y = SY - 18; y < SY + 22; y += 6) s += `<path d="M 372 ${y} l 6 -3 l 6 3" fill="none" stroke="${ink2}" stroke-width="1"/>`;
-  s += label(378, SY + 36, "filter", "middle", 9, ink2, 700) + label(378, SY + 47, fdp == null ? "–" : `ΔP ${fdp.toFixed(3)} in.`, "middle", 8.5, fdp != null && fdp > 0.5 ? bad : muted, 600) + (fdp != null && fdp > 0.5 ? label(378, SY + 56, "dirty, change it", "middle", 7, bad, 700) : "");
+  s += label(378, SY + 36, "filter", "middle", 9, ink2, 700) + label(378, SY + 47, fdp == null ? "–" : `ΔP ${fdp.toFixed(3)} in.`, "middle", 8.5, fdp != null && fdp >= 0.5 ? bad : muted, 600) + (fdp != null && fdp >= 0.5 ? label(378, SY + 56, "dirty, change it", "middle", 7, bad, 700) : "");
   // heating coil (hot water from the boilers) with its control valve
   s += coil(443, SY, red, htg > 0, true) + label(443, SY + 36, "heating coil", "middle", 9, htg > 0 ? red : ink2, 700) + label(443, SY + 47, has("HTG-O") ? `valve ${htg.toFixed(0)} % open` : "–", "middle", 8.5, htg > 0 ? red : muted, 600);
   s += label(443, SY + 56, `${extra.valve || "valve"} · water from the boilers`, "middle", 7);
