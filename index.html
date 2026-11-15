@@ -1517,7 +1517,7 @@ function ahuSvg(a) {
   s += label(927, 258, bp == null ? "–" : `${bp >= 0 ? "+" : ""}${bp.toFixed(3)} in. w.c.`, "middle", 11, bp != null && bp < 0 ? bad : ink2, 600) + label(927, 269, `building pressure${bpsp != null ? ` (setpoint ${bpsp.toFixed(2)})` : ""}`, "middle", 7.5);
   // the negative-pressure warning and the dehumidify lines are each split in two: on one line they ran past the box's sides (Russ, 2026-11-15)
   const neg = bp != null && bp < 0;
-  if (neg) s += label(927, 280, "below outdoors:", "middle", 7.5, bad) + label(927, 289, "air is being sucked in", "middle", 7.5, bad);
+  if (neg) s += label(927, 280, "Negative pressure:", "middle", 7.5, bad) + label(927, 289, "drawing in outside air", "middle", 7.5, bad);   // wording picked by Russ 2026-11-15
   if (extra.dehum) { const rh = pt(extra.dehum + "RH Setpoint"), ds = pt(extra.dehum + "Dehumid Schedule");
     const dc = ds && Number(ds.last_value) === 1 ? blue : muted, dy = neg ? 300 : 296;
     if (rh) s += label(927, dy, `dehumidify ${ds && Number(ds.last_value) === 1 ? "ON" : "off"}`, "middle", 7.5, dc, 600) + label(927, dy + 9.5, `humidity setpoint ${Number(rh.last_value).toFixed(0)}%`, "middle", 7.5, dc, 600); }
