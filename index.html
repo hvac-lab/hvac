@@ -1499,7 +1499,7 @@ function ahuSvg(a) {
   const occ = txt("EFF-OCC"), st = txt("AHU-STATE"), unit = txt("UNITEN-MODE"), wc = txt("WC-C"), econ = has("ECON-AVAILABLE") ? (on("ECON-AVAILABLE") ? "economizer available" : "economizer off (outdoor air too cold or too moist)") : "";
   const stateColor = /unreliable/i.test(st) ? bad : ink2;
   s += label(20, 42, `${st}${occ !== "–" ? " · " + occ.toLowerCase() : ""}${unit === "Shutdown" ? " · UNIT SHUT DOWN" : ""}${wc && wc !== "Normal" && wc !== "–" ? " · " + wc.toLowerCase() : ""}`, "start", 11, unit === "Shutdown" ? bad : stateColor, 600);
-  if (econ) s += label(20, 56, econ, "start", 9);
+  if (econ) s += label(80, 56, econ, "start", 9);   // x 80: right of the exhaust louver, which covered it at x 20 (Russ, 2026-11-15)
   if (alert) s += `<rect x="440" y="10" width="545" height="20" rx="10" fill="${bad}"/>` + label(712, 24, "ALERT: " + (alert.message || "").slice(0, 85), "middle", 9.5, "#fff", 700);
   // --- the rooms (right): zone temperature, setpoint, humidity, building pressure
   s += `<rect x="868" y="70" width="118" height="245" rx="10" fill="${surface}" stroke="${css(SERIES[i])}" stroke-width="2.5"/>`;
