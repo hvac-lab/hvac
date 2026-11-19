@@ -54,7 +54,7 @@
   table.admin form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .adminAdd { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top: 10px; }
   .adminAdd input[type=text] { padding: 8px 10px; font-size: 16px; }   /* 16px keeps iPhones from zooming into the field */
-  main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+  main { padding: 16px; max-width: 1400px; margin: 0 auto; min-height: 100vh; box-sizing: border-box; }   /* tall enough to keep the tab row at the top */
   .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
   .filters .group { display:flex; gap:4px; }
   .filters label.chk { display:inline-flex; align-items:center; gap:5px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
@@ -573,11 +573,15 @@ function renderStatus() {
 }
 
 // ------------------------------------------------------------------ tabs
+// A tab click while the tab row is stuck at the top of the window keeps it there and opens the new tab just below it;
+// otherwise the page starts at the top (Russ, 2026-11-18, same on the stream page).
+const tabsStuck = () => window.scrollY >= $("header").offsetHeight - 1;
+const tabScroll = (stuck) => window.scrollTo(0, stuck ? $("header").offsetHeight : 0);
 function renderTabs() {
   const nav = $("#tabs"); nav.style.display = ""; nav.replaceChildren();
   const adminOnly = ["admin", "adjust"];   // Adjust changes the building, so admins only (Russ, 2026-11-07)
   if ((adminOnly.includes(state.tab) && !state.admin) || !TABS.some(t => t[0] === state.tab)) state.tab = "temp";
-  for (const [key, label] of TABS) if (!adminOnly.includes(key) || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { state.tab = key; store.set("tab", key); renderTab(); } }, label));
+  for (const [key, label] of TABS) if (!adminOnly.includes(key) || state.admin) nav.append(el("button", { class: key === state.tab ? "on" : "", onclick: () => { const stuck = tabsStuck(); state.tab = key; store.set("tab", key); renderTab(); tabScroll(stuck); } }, label));
   const on = nav.querySelector("button.on"); if (on && nav.scrollWidth > nav.clientWidth) on.scrollIntoView({ block: "nearest", inline: "center" });   // phone: one scrolling row
 }
 function renderTab() {
