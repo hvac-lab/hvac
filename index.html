@@ -89,6 +89,7 @@
   .center p { color: var(--ink-2); }
   td.ctr, th.ctr { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
   td.desc { color: var(--ink-2); }
+  table.audit th.desc, table.audit td.desc { width: 22%; }   /* Audit: Description twice as wide as the browser gave it (Russ, 2026-11-25) */
   .dim { opacity: .5; }
   .ctl { display: grid; grid-template-columns: 1.4fr auto auto auto auto 1.6fr; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--grid); }
   .ctl .name { font-weight: 600; } .ctl .name small { font-weight: 400; color: var(--muted); display: block; font-size: 12px; }
